@@ -1,0 +1,30 @@
+# NoteMap Backend - Lightweight AWS Deployment
+
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+gunicorn==21.2.0
+
+# OCR / Image
+pytesseract==0.3.10
+pillow==10.1.0
+opencv-python-headless==4.8.1.78
+
+# PDF
+PyPDF2==3.0.1
+pdfplumber==0.10.2
+pdf2image==1.16.3
+reportlab==4.0.9
+
+# NLP
+spacy==3.7.2
+nltk==3.8.1
+symspellpy==6.7.7
+scikit-learn==1.3.2
+numpy==1.24.3
+
+# AWS SDK
+boto3==1.28.57
+
+# Env vars
+python-dotenv==1.0.0

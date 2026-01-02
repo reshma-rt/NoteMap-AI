@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules/
+backend/venv/
+backend/env/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+
+# Logs and environment files
+*.log
+notemap.log
+.env
+
+# Editor-specific files
+.vscode/
+.idea/
+.DS_Store
+
+# Large binary files (safety net)
+*.dll
+*.pyd
+*.exe
+*.so
