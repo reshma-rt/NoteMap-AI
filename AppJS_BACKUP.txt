@@ -1,0 +1,1542 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Home, Upload, LayoutDashboard, Sun, Moon, FileText, Search, Download, ExternalLink, ChevronDown, ChevronRight, X, CheckCircle, Clock, AlertCircle, Eye, Settings, BookOpen, Tag, MapPin, Sparkles } from 'lucide-react';
+
+export default function NoteMap() {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [isDark, setIsDark] = useState(true);
+  const [selectedSubject, setSelectedSubject] = useState('All Subjects');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [processedNotes, setProcessedNotes] = useState([]);
+  const [apiEndpoint, setApiEndpoint] = useState('http://localhost:5000/api/upload');
+  const [showSettings, setShowSettings] = useState(false);
+  const [backendInfo, setBackendInfo] = useState(null);
+  const [expandedTOC, setExpandedTOC] = useState({});
+  const [selectedFormat, setSelectedFormat] = useState('md');
+  const [downloadStatus, setDownloadStatus] = useState({});
+  const [tocSearchQuery, setTocSearchQuery] = useState('');
+  const [selectedTOCEntry, setSelectedTOCEntry] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Check backend health on mount
+  useEffect(() => {
+    checkBackendHealth();
+  }, []);
+
+  const checkBackendHealth = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/health');
+      const data = await res.json();
+      setBackendInfo(data);
+    } catch (err) {
+      console.error('Backend not available:', err);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (files) => {
+    const validFiles = Array.from(files).filter(file => {
+      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+      const maxSize = 10 * 1024 * 1024;
+      
+      if (!validTypes.includes(file.type)) {
+        alert(`${file.name} is not a valid file type.`);
+        return false;
+      }
+      if (file.size > maxSize) {
+        alert(`${file.name} is too large. Max 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    setIsProcessing(true);
+    
+    for (const file of validFiles) {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        const newFile = {
+          id: Date.now() + Math.random(),
+          name: file.name,
+          size: (file.size / 1024).toFixed(2) + ' KB',
+          type: file.type,
+          status: 'processing',
+          progress: 0,
+          previewUrl: e.target.result,
+          file: file
+        };
+        
+        setUploadedFiles(prev => [...prev, newFile]);
+        
+        // Progress simulation
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += 15;
+          if (progress <= 90) {
+            setUploadedFiles(prev => prev.map(f => 
+              f.id === newFile.id ? { ...f, progress } : f
+            ));
+          }
+        }, 400);
+        
+        // Process file
+        try {
+          const result = await extractTextFromFile(file);
+          clearInterval(progressInterval);
+          
+          if (!result || !result.success) {
+            throw new Error(result?.error || 'Processing failed');
+          }
+
+          // Update file status
+          setUploadedFiles(prev => prev.map(f =>
+            f.id === newFile.id ? {
+              ...f,
+              status: 'completed',
+              progress: 100,
+              ...result
+            } : f
+          ));
+
+          // Add to processed notes
+          const processedNote = {
+            id: Date.now() + Math.random(),
+            filename: file.name,
+            subject: result.subject || 'Other',
+            date: result.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            charCount: result.charCount || 0,
+            wordCount: result.wordCount || 0,
+            extractedText: result.extractedText || result.text || '',
+            sections: result.sections || [],
+            concepts: result.concepts || [],
+            tableOfContents: result.tableOfContents || null,
+            processingInfo: result.processingInfo || null,
+            totalSections: (result.sections || []).length,
+            preview: (result.preview || result.extractedText || '').substring(0, 150) + '...'
+          };
+
+          setProcessedNotes(prev => [...prev, processedNote]);
+          
+        } catch (error) {
+          clearInterval(progressInterval);
+          console.error('Processing error:', error);
+          
+          setUploadedFiles(prev => prev.map(f => 
+            f.id === newFile.id ? { 
+              ...f, 
+              status: 'error', 
+              progress: 0,
+              errorMessage: error.message 
+            } : f
+          ));
+          
+          alert(`Failed to process ${file.name}: ${error.message}`);
+        }
+      };
+      
+      reader.readAsDataURL(file);
+    }
+    
+    setIsProcessing(false);
+  };
+
+  // Extract text using backend API
+  const extractTextFromFile = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const endpoints = [
+      apiEndpoint,
+      "http://localhost:5000/api/upload",
+      "http://127.0.0.1:5000/api/upload"
+    ];
+
+    const uniqueEndpoints = [...new Set(endpoints)];
+    let lastError = null;
+    
+    for (const endpoint of uniqueEndpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          lastError = new Error(`API error ${res.status}: ${errorText}`);
+          continue;
+        }
+
+        const data = await res.json();
+        return data;
+        
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+
+    throw lastError || new Error("Could not connect to backend");
+  };
+
+  // Preview handlers
+  const handlePreview = (file) => {
+    setPreviewFile(file);
+    setShowPreview(true);
+  };
+
+  const closePreview = () => {
+    setShowPreview(false);
+    setPreviewFile(null);
+  };
+
+  // Download functions
+  const downloadNotesBySubject = async (subject) => {
+    const notes = subject === 'All Subjects' 
+      ? processedNotes 
+      : processedNotes.filter(n => n.subject === subject);
+    
+    if (notes.length === 0) {
+      alert('No notes found for this subject');
+      return;
+    }
+
+    let content = generateCombinedMarkdown(notes, subject);
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${subject.replace(/\s+/g, '_')}_All_Notes.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    alert(`Downloaded ${notes.length} notes from ${subject}!`);
+  };
+
+  const downloadNote = async (format, note) => {
+    setDownloadStatus(prev => ({ ...prev, [note.id]: 'Preparing download...' }));
+
+    setTimeout(() => {
+      let content = '';
+      let filename = '';
+      let mimeType = '';
+
+      if (format === 'txt') {
+        content = generateTextContent(note);
+        filename = `${note.filename.replace(/\.[^/.]+$/, '')}_notes.txt`;
+        mimeType = 'text/plain';
+      } else if (format === 'md') {
+        content = generateMarkdownContent(note);
+        filename = `${note.filename.replace(/\.[^/.]+$/, '')}_notes.md`;
+        mimeType = 'text/markdown';
+      } else if (format === 'json') {
+        content = JSON.stringify(note, null, 2);
+        filename = `${note.filename.replace(/\.[^/.]+$/, '')}_notes.json`;
+        mimeType = 'application/json';
+      }
+
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setDownloadStatus(prev => ({ ...prev, [note.id]: `✓ Downloaded ${filename}` }));
+      setTimeout(() => {
+        setDownloadStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[note.id];
+          return newStatus;
+        });
+      }, 3000);
+    }, 500);
+  };
+
+  const generateCombinedMarkdown = (notes, subject) => {
+    let content = [];
+    content.push(`# ${subject} - Complete Notes Collection\n`);
+    content.push(`**Generated:** ${new Date().toLocaleString()}\n`);
+    content.push(`**Total Documents:** ${notes.length}\n`);
+    content.push('---\n');
+
+    notes.forEach((note, idx) => {
+      content.push(`\n## Document ${idx + 1}: ${note.filename}\n`);
+      content.push(`**Subject:** ${note.subject} | **Date:** ${note.date}\n`);
+      
+      if (note.tableOfContents) {
+        content.push('\n### 📑 Table of Contents\n');
+        note.tableOfContents.entries.forEach(entry => {
+          const indent = '  '.repeat(entry.level - 1);
+          content.push(`${indent}- **${entry.title}** (Page ${entry.page})`);
+        });
+        content.push('');
+      }
+
+      content.push('\n### 📝 Content\n');
+      note.sections.forEach(section => {
+        const heading = '#'.repeat((section.level || 1) + 3);
+        content.push(`\n${heading} ${section.title}`);
+        if (section.topic) {
+          content.push(`\n> **Topic:** ${section.topic}`);
+        }
+        if (section.page) {
+          content.push(`> **Page:** ${section.page}\n`);
+        }
+        content.push(`${section.desc}\n`);
+      });
+
+      if (note.concepts && note.concepts.length > 0) {
+        content.push('\n### 🔑 Key Concepts\n');
+        note.concepts.forEach(concept => {
+          content.push(`- \`${concept}\``);
+        });
+      }
+
+      content.push('\n---\n');
+    });
+
+    return content.join('\n');
+  };
+
+  const generateTextContent = (note) => {
+    let content = [];
+    content.push('='.repeat(80));
+    content.push('ORGANIZED NOTES - NoteMap');
+    content.push(`Generated: ${new Date().toLocaleString()}`);
+    content.push('='.repeat(80));
+    content.push('');
+    content.push(`FILE: ${note.filename}`);
+    content.push(`SUBJECT: ${note.subject}`);
+    content.push(`DATE: ${note.date}`);
+    content.push(`SECTIONS: ${note.totalSections}`);
+    content.push('='.repeat(80));
+    content.push('');
+
+    if (note.tableOfContents) {
+      content.push('TABLE OF CONTENTS:');
+      content.push('-'.repeat(80));
+      note.tableOfContents.entries.forEach(entry => {
+        const indent = '  '.repeat(entry.level - 1);
+        content.push(`${indent}${entry.id}. ${entry.title} (Page ${entry.page}, ${entry.topic})`);
+      });
+      content.push('');
+    }
+
+    content.push('CONTENT:');
+    content.push('-'.repeat(80));
+    note.sections.forEach((section, idx) => {
+      content.push(`\n${idx + 1}. ${section.title}`);
+      if (section.topic) {
+        content.push(`   Topic: ${section.topic}`);
+      }
+      if (section.page) {
+        content.push(`   Page: ${section.page} | Level: H${section.level}`);
+      }
+      content.push(`   ${section.desc}`);
+      content.push('');
+    });
+
+    if (note.concepts && note.concepts.length > 0) {
+      content.push('KEY CONCEPTS:');
+      content.push('-'.repeat(80));
+      content.push(note.concepts.join(', '));
+      content.push('');
+    }
+
+    return content.join('\n');
+  };
+
+  const generateMarkdownContent = (note) => {
+    let content = [];
+    content.push('# Organized Notes - NoteMap\n');
+    content.push(`**Generated:** ${new Date().toLocaleString()}\n`);
+    content.push('---\n');
+    content.push(`## 📄 ${note.filename}\n`);
+    content.push(`**Subject:** ${note.subject}  `);
+    content.push(`**Date:** ${note.date}  `);
+    content.push(`**Sections:** ${note.totalSections}\n`);
+
+    if (note.tableOfContents) {
+      content.push('### 📑 Table of Contents\n');
+      note.tableOfContents.entries.forEach(entry => {
+        const indent = '  '.repeat(entry.level - 1);
+        content.push(`${indent}- **${entry.title}** _(Page ${entry.page}, ${entry.topic})_`);
+      });
+      content.push('');
+    }
+
+    content.push('### 📝 Content\n');
+    note.sections.forEach(section => {
+      const heading = '#'.repeat((section.level || 1) + 3);
+      content.push(`\n${heading} ${section.title}`);
+      if (section.topic) {
+        content.push(`\n> **Topic:** ${section.topic}`);
+      }
+      if (section.page) {
+        content.push(`> **Page:** ${section.page}\n`);
+      }
+      content.push(`${section.desc}\n`);
+    });
+
+    if (note.concepts && note.concepts.length > 0) {
+      content.push('### 🔑 Key Concepts\n');
+      note.concepts.forEach(concept => {
+        content.push(`- \`${concept}\``);
+      });
+      content.push('');
+    }
+
+    return content.join('\n');
+  };
+
+  // Utility functions
+  const getTopicColor = (topic) => {
+    const colors = {
+      'Statistics': 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+      'Data Structures': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+      'Operating Systems': 'bg-green-500/10 text-green-400 border-green-500/30',
+      'Computer Networks': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+      'Software Engineering': 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+      'Mathematics': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+      'Management': 'bg-pink-500/10 text-pink-400 border-pink-500/30',
+      'Computer Science': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+      'Cybersecurity': 'bg-red-500/10 text-red-400 border-red-500/30',
+      'General': 'bg-gray-500/10 text-gray-400 border-gray-500/30',
+      'Other': 'bg-gray-500/10 text-gray-400 border-gray-500/30'
+    };
+    return colors[topic] || colors['Other'];
+  };
+
+  const toggleTOCSection = (section) => {
+    setExpandedTOC(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const searchTOC = (entries, query) => {
+    if (!query.trim()) return entries;
+    const lowerQuery = query.toLowerCase();
+    return entries.filter(entry =>
+      entry.title.toLowerCase().includes(lowerQuery) ||
+      entry.topic.toLowerCase().includes(lowerQuery) ||
+      entry.page.toString().includes(lowerQuery)
+    );
+  };
+
+  const scrollToTOCEntry = (entry) => {
+    setSelectedTOCEntry(entry);
+  };
+
+  const exportTOC = (note, format) => {
+    let content = '';
+    let filename = '';
+    let mimeType = '';
+
+    if (format === 'md') {
+      content = generateTOCContent(note, 'md');
+      filename = `${note.filename.replace(/\.[^/.]+$/, '')}_toc.md`;
+      mimeType = 'text/markdown';
+    } else if (format === 'txt') {
+      content = generateTOCContent(note, 'txt');
+      filename = `${note.filename.replace(/\.[^/.]+$/, '')}_toc.txt`;
+      mimeType = 'text/plain';
+    } else if (format === 'json') {
+      content = JSON.stringify(note.tableOfContents, null, 2);
+      filename = `${note.filename.replace(/\.[^/.]+$/, '')}_toc.json`;
+      mimeType = 'application/json';
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setDownloadStatus(prev => ({ ...prev, [note.id]: `✓ TOC exported as ${filename}` }));
+    setTimeout(() => {
+      setDownloadStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[note.id];
+        return newStatus;
+      });
+    }, 3000);
+  };
+
+  const generateTOCContent = (note, format) => {
+    if (format === 'md') {
+      let content = `# Table of Contents - ${note.filename}\n\n`;
+      content += `**Generated:** ${new Date().toLocaleString()}\n\n`;
+      content += '---\n\n';
+
+      note.tableOfContents.entries.forEach(entry => {
+        const indent = '  '.repeat(entry.level - 1);
+        content += `${indent}- **${entry.title}** (Page ${entry.page})\n`;
+        content += `${indent}  - Topic: ${entry.topic}\n\n`;
+      });
+
+      return content;
+    } else if (format === 'txt') {
+      let content = `TABLE OF CONTENTS - ${note.filename}\n`;
+      content += `Generated: ${new Date().toLocaleString()}\n\n`;
+      content += '='.repeat(50) + '\n\n';
+
+      note.tableOfContents.entries.forEach(entry => {
+        const indent = '  '.repeat(entry.level - 1);
+        content += `${indent}${entry.id}. ${entry.title}\n`;
+        content += `${indent}   Page: ${entry.page} | Topic: ${entry.topic}\n\n`;
+      });
+
+      return content;
+    }
+  };
+
+  const removeFile = (fileId) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  // Drag and drop handlers
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileInputChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files);
+    }
+  };
+
+  // Get filtered notes
+  const getFilteredNotes = () => {
+    let filtered = processedNotes;
+
+    if (selectedSubject !== 'All Subjects') {
+      filtered = filtered.filter(note => note.subject === selectedSubject);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(note => 
+        note.filename.toLowerCase().includes(query) ||
+        note.subject.toLowerCase().includes(query) ||
+        note.preview.toLowerCase().includes(query) ||
+        (note.sections && note.sections.some(section => 
+          section.title.toLowerCase().includes(query) ||
+          section.desc.toLowerCase().includes(query)
+        )) ||
+        (note.concepts && note.concepts.some(concept => 
+          concept.toLowerCase().includes(query)
+        ))
+      );
+    }
+
+    return filtered;
+  };
+
+  // Get available subjects from processed notes
+  const getAvailableSubjects = () => {
+    const subjects = new Set(processedNotes.map(n => n.subject));
+    return ['All Subjects', ...Array.from(subjects).sort()];
+  };
+
+  // Page renderers
+  const renderHomePage = () => (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+      <div className={`mb-8 px-6 py-2 rounded-full flex items-center gap-2 ${
+        isDark 
+          ? 'bg-purple-900/40 border border-purple-500/30' 
+          : 'bg-purple-100 border border-purple-300'
+      }`}>
+        <Sparkles size={18} className={isDark ? 'text-purple-300' : 'text-purple-600'} />
+        <span className={`font-medium ${isDark ? 'text-purple-200' : 'text-purple-700'}`}>
+          AI-Powered Note Organization
+        </span>
+      </div>
+      
+      {backendInfo && backendInfo.status === 'healthy' && (
+        <div className={`mb-6 px-4 py-3 rounded-lg ${
+          isDark ? 'bg-gray-800/50' : 'bg-white shadow-sm'
+        }`}>
+          <div className="flex flex-wrap justify-center gap-2">
+            <span className={`text-xs px-3 py-1 rounded-full ${
+              isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+            }`}>
+              🔍 Tesseract OCR
+            </span>
+            <span className={`text-xs px-3 py-1 rounded-full ${
+              isDark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700'
+            }`}>
+              📚 Smart TOC Generation
+            </span>
+            <span className={`text-xs px-3 py-1 rounded-full ${
+              isDark ? 'bg-indigo-900/30 text-indigo-300' : 'bg-indigo-100 text-indigo-700'
+            }`}>
+              🎯 Auto Classification
+            </span>
+          </div>
+        </div>
+      )}
+      
+      <div className="relative mb-6">
+        <div className={`absolute inset-0 blur-3xl ${
+          isDark 
+            ? 'bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-purple-600/30' 
+            : 'bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-purple-400/20'
+        }`}></div>
+        <h1 className={`relative text-7xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+          isDark 
+            ? 'from-purple-400 via-blue-400 to-purple-400' 
+            : 'from-purple-600 via-blue-600 to-purple-600'
+        }`}>
+          NoteMap
+        </h1>
+      </div>
+      
+      <p className={`text-4xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        Transform Notes into Organized Knowledge
+      </p>
+      
+      <p className={`text-xl text-center max-w-3xl mb-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+        Upload, organize, and explore your notes with intelligent structure and insights
+      </p>
+      
+      <div className="flex gap-4">
+        <button
+          onClick={() => setCurrentPage('upload')}
+          className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold flex items-center gap-2 hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-purple-500/50 hover:shadow-purple-500/70 hover:scale-105"
+        >
+          <Upload size={20} />
+          Upload Notes
+        </button>
+        <button
+          onClick={() => setCurrentPage('dashboard')}
+          className={`px-8 py-4 rounded-lg font-semibold flex items-center gap-2 transition-all duration-300 hover:scale-105 ${
+            isDark 
+              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' 
+              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 shadow-md'
+          }`}
+        >
+          <LayoutDashboard size={20} />
+          View Dashboard
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderUploadPage = () => (
+    <div className="min-h-screen px-6 py-12 flex flex-col items-center justify-center">
+      <div className="max-w-4xl w-full mx-auto">
+        <h1 className="text-6xl font-bold text-center mb-4 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+          Upload Your Notes
+        </h1>
+        <p className={`text-lg text-center mb-16 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          Drop your handwritten notes and let AI organize them instantly
+        </p>
+
+        <div
+          className={`rounded-2xl p-10 text-center backdrop-blur-sm transition-all duration-300 ${
+            isDark 
+              ? 'bg-gradient-to-br from-gray-800/40 to-gray-900/40 border' + (dragActive ? ' border-purple-500 bg-purple-500/10 border-2' : ' border-gray-700')
+              : 'bg-white border' + (dragActive ? ' border-purple-500 bg-purple-100' : ' border-gray-300 shadow-lg')
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            accept=".png, .jpg, .jpeg, .pdf"
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+          
+          <div 
+            className="cursor-pointer"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-purple-700 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-purple-600/30">
+              <Upload size={40} className="text-white" />
+            </div>
+            
+            <h3 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Click or drag files to upload
+            </h3>
+            <p className={`mb-8 text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Supports images and PDFs up to 10MB
+            </p>
+            
+            <div className="flex gap-3 justify-center mb-6">
+              <span className={`px-5 py-2 border rounded-md text-sm font-medium ${
+                isDark ? 'bg-blue-900/40 border-blue-600/40 text-blue-300' : 'bg-blue-100 border-blue-300 text-blue-700'
+              }`}>.PNG</span>
+              <span className={`px-5 py-2 border rounded-md text-sm font-medium ${
+                isDark ? 'bg-purple-900/40 border-purple-600/40 text-purple-300' : 'bg-purple-100 border-purple-300 text-purple-700'
+              }`}>.JPG</span>
+              <span className={`px-5 py-2 border rounded-md text-sm font-medium ${
+                isDark ? 'bg-pink-900/40 border-pink-600/40 text-pink-300' : 'bg-pink-100 border-pink-300 text-pink-700'
+              }`}>.PDF</span>
+            </div>
+          </div>
+
+          {uploadedFiles.length > 0 && (
+            <div className="mt-8 space-y-4">
+              <h3 className={`text-xl font-semibold mb-4 text-left ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Uploaded Files:
+              </h3>
+              {uploadedFiles.map((file) => (
+                <div key={file.id} className={`rounded-lg p-4 ${
+                  isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        file.type === 'application/pdf' 
+                          ? isDark ? 'bg-red-900/30' : 'bg-red-100'
+                          : isDark ? 'bg-purple-900/30' : 'bg-purple-100'
+                      }`}>
+                        <FileText className={file.type === 'application/pdf' 
+                          ? isDark ? 'text-red-400' : 'text-red-600'
+                          : isDark ? 'text-purple-400' : 'text-purple-600'
+                        } size={20} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {file.name}
+                        </p>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {file.size}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {file.status === 'processing' && (
+                        <Clock className="text-blue-400 animate-spin" size={20} />
+                      )}
+                      {file.status === 'completed' && (
+                        <CheckCircle className="text-green-400" size={20} />
+                      )}
+                      {file.status === 'error' && (
+                        <AlertCircle className="text-red-400" size={20} />
+                      )}
+                      <button
+                        onClick={() => handlePreview(file)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                        }`}
+                      >
+                        <Eye className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} size={18} />
+                      </button>
+                      <button
+                        onClick={() => removeFile(file.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                        }`}
+                      >
+                        <X className={isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-600 hover:text-red-600'} size={18} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {file.status === 'processing' && (
+                    <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                      <div 
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 h-full transition-all duration-300"
+                        style={{ width: `${file.progress}%` }}
+                      />
+                    </div>
+                  )}
+                  
+                  {file.status === 'completed' && file.extractedText && (
+                    <div className="mt-3 space-y-3">
+                      {file.processingInfo && (
+                        <div className={`p-3 border rounded-lg text-left ${
+                          isDark ? 'bg-blue-900/20 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+                        }`}>
+                          <p className={`text-sm font-medium mb-2 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                            Processing: {file.processingInfo.ocr_method}
+                          </p>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className={`px-2 py-1 rounded ${
+                              isDark ? 'bg-gray-700/80 text-gray-200' : 'bg-white text-gray-700'
+                            }`}>
+                              {file.processingInfo.text_type}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {file.subject && (
+                        <div className={`p-3 rounded-lg text-left ${
+                          isDark ? 'bg-gray-900/50' : 'bg-gray-100'
+                        }`}>
+                          <p className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Classification:
+                          </p>
+                          <span className={`px-3 py-1 border rounded-full text-sm ${getTopicColor(file.subject)}`}>
+                            {file.subject}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {file.concepts && file.concepts.length > 0 && (
+                        <div className={`p-3 rounded-lg text-left ${
+                          isDark ? 'bg-gray-900/50' : 'bg-gray-100'
+                        }`}>
+                          <p className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Key Concepts:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {file.concepts.slice(0, 5).map((concept, idx) => (
+                              <span key={idx} className={`px-2 py-1 rounded text-xs ${
+                                isDark ? 'bg-gray-700/80 text-gray-200' : 'bg-white text-gray-700'
+                              }`}>
+                                {concept}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {file.status === 'error' && (
+                    <div className={`mt-3 p-3 border rounded-lg text-left ${
+                      isDark ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'
+                    }`}>
+                      <p className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-700'}`}>
+                        Error: {file.errorMessage || 'Processing failed'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {uploadedFiles.length > 0 && uploadedFiles.some(f => f.status === 'completed') && (
+            <div className="mt-8">
+              <button
+                onClick={() => setCurrentPage('dashboard')}
+                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:scale-105"
+              >
+                View in Dashboard
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDashboard = () => {
+    const filteredNotes = getFilteredNotes();
+    const availableSubjects = getAvailableSubjects();
+    
+    return (
+      <div className="min-h-screen px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                My Organized Notes
+              </h1>
+              <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+                {filteredNotes.length} {filteredNotes.length === 1 ? 'note' : 'notes'}
+                {selectedSubject !== 'All Subjects' && ` in ${selectedSubject}`}
+                {searchQuery && ' matching your search'}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => downloadNotesBySubject(selectedSubject)}
+                disabled={filteredNotes.length === 0}
+                className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all duration-300 hover:scale-105 ${
+                  filteredNotes.length === 0
+                    ? isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 shadow-md'
+                }`}
+              >
+                <Download size={18} />
+                Download {selectedSubject === 'All Subjects' ? 'All' : selectedSubject}
+              </button>
+              <button
+                onClick={() => setCurrentPage('upload')}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold flex items-center gap-2 hover:bg-purple-700 transition-all duration-300 shadow-lg shadow-purple-600/50 hover:scale-105"
+              >
+                <Upload size={18} />
+                Upload Notes
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-4 mb-8">
+            <div className="flex-1 relative">
+              <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} size={20} />
+              <input
+                type="text"
+                placeholder="Search notes by filename, content, topics, or concepts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full rounded-lg pl-12 pr-4 py-3 focus:outline-none transition-colors ${
+                  isDark 
+                    ? 'bg-gray-800/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500' 
+                    : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-purple-500 shadow-sm'
+                }`}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className={`absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-colors ${
+                    isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className={`rounded-lg px-6 py-3 appearance-none pr-10 focus:outline-none cursor-pointer transition-colors ${
+                  isDark 
+                    ? 'bg-gray-800/50 border border-gray-700 text-white focus:border-purple-500' 
+                    : 'bg-white border border-gray-300 text-gray-900 focus:border-purple-500 shadow-sm'
+                }`}
+              >
+                {availableSubjects.map(subject => (
+                  <option key={subject}>{subject}</option>
+                ))}
+              </select>
+              <ChevronDown className={`absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`} size={20} />
+            </div>
+          </div>
+
+          {filteredNotes.length === 0 ? (
+            <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              <Search size={64} className="mx-auto mb-4 opacity-50" />
+              <h3 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                No notes found
+              </h3>
+              <p className="mb-6">
+                {processedNotes.length === 0 
+                  ? 'Upload your first note to get started!'
+                  : searchQuery 
+                    ? `No results for "${searchQuery}"`
+                    : `No notes in ${selectedSubject}`
+                }
+              </p>
+              <button
+                onClick={() => setCurrentPage('upload')}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all duration-300"
+              >
+                Upload Notes
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredNotes.map((note) => (
+                <div key={note.id} className={`border border-t-4 rounded-xl overflow-hidden backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                  isDark
+                    ? 'bg-gray-800/50 border-cyan-400 hover:border-t-cyan-300 hover:shadow-cyan-400/20'
+                    : 'bg-white border-cyan-500 hover:border-t-cyan-600 shadow-md hover:shadow-cyan-500/20'
+                }`}>
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+                          <FileText size={24} className="text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {note.filename}
+                          </h3>
+                          <div className={`flex gap-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <span>📅 {note.date}</span>
+                            <span>•</span>
+                            <span>📝 {note.totalSections} sections</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Download Section */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <select
+                        value={selectedFormat}
+                        onChange={(e) => setSelectedFormat(e.target.value)}
+                        className={`flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                          isDark 
+                            ? 'bg-gray-700 border border-gray-600 text-white focus:border-purple-500'
+                            : 'bg-gray-100 border border-gray-300 text-gray-900 focus:border-purple-500'
+                        }`}
+                      >
+                        <option value="md">Markdown (.md)</option>
+                        <option value="txt">Plain Text (.txt)</option>
+                        <option value="json">JSON (.json)</option>
+                      </select>
+                      <button
+                        onClick={() => downloadNote(selectedFormat, note)}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-2 transition-all"
+                      >
+                        <Download size={16} />
+                      </button>
+                    </div>
+
+                    {downloadStatus[note.id] && (
+                      <div className={`mb-4 p-2 border rounded-lg text-sm ${
+                        isDark ? 'bg-green-900/20 border-green-500/30 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
+                      }`}>
+                        {downloadStatus[note.id]}
+                      </div>
+                    )}
+
+                    {/* Subject Badge */}
+                    <div className="mb-4">
+                      <span className={`px-3 py-1 border rounded-full text-sm font-medium ${getTopicColor(note.subject)}`}>
+                        {note.subject}
+                      </span>
+                    </div>
+
+                    {/* Processing Info */}
+                    {note.processingInfo && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          🔍 {note.processingInfo.ocr_method}
+                        </span>
+                      </div>
+                    )}
+
+                    <p className={`text-sm mb-4 line-clamp-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {note.preview}
+                    </p>
+
+                    {/* Smart Table of Contents */}
+                    {note.tableOfContents && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <button
+                            onClick={() => toggleTOCSection(`note-${note.id}`)}
+                            className={`flex items-center gap-2 text-left p-2 rounded-lg transition-colors flex-1 ${
+                              isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            <BookOpen className={isDark ? 'text-blue-400' : 'text-blue-600'} size={16} />
+                            <span className={`font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                              Table of Contents
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {note.tableOfContents.total_sections} sections
+                            </span>
+                            {expandedTOC[`note-${note.id}`] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </button>
+
+                          {/* TOC Export Options */}
+                          <div className="flex items-center gap-2">
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  exportTOC(note, e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className={`rounded px-2 py-1 text-xs focus:outline-none ${
+                                isDark
+                                  ? 'bg-gray-700 border border-gray-600 text-white focus:border-purple-500'
+                                  : 'bg-gray-100 border border-gray-300 text-gray-900 focus:border-purple-500'
+                              }`}
+                            >
+                              <option value="">Export TOC</option>
+                              <option value="md">Markdown</option>
+                              <option value="txt">Text</option>
+                              <option value="json">JSON</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {expandedTOC[`note-${note.id}`] && (
+                          <div className="space-y-3">
+                            {/* TOC Search */}
+                            <div className="relative">
+                              <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} size={14} />
+                              <input
+                                type="text"
+                                placeholder="Search TOC..."
+                                value={tocSearchQuery}
+                                onChange={(e) => setTocSearchQuery(e.target.value)}
+                                className={`w-full rounded pl-8 pr-4 py-2 text-sm focus:outline-none transition-colors ${
+                                  isDark
+                                    ? 'bg-gray-800/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500'
+                                    : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-purple-500'
+                                }`}
+                              />
+                              {tocSearchQuery && (
+                                <button
+                                  onClick={() => setTocSearchQuery('')}
+                                  className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-colors ${
+                                    isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                  }`}
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Hierarchical TOC */}
+                            <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                              <h5 className={`text-xs font-semibold mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                📋 Hierarchical View
+                              </h5>
+                              <div className="space-y-1">
+                                {searchTOC(note.tableOfContents.entries, tocSearchQuery).slice(0, 10).map(entry => (
+                                  <div
+                                    key={entry.id}
+                                    className={`flex items-start gap-2 p-1 rounded transition-colors text-xs cursor-pointer ${
+                                      selectedTOCEntry?.id === entry.id
+                                        ? isDark ? 'bg-purple-900/30 border border-purple-500/50' : 'bg-purple-100 border border-purple-300'
+                                        : isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'
+                                    }`}
+                                    style={{ paddingLeft: `${(entry.level - 1) * 0.5}rem` }}
+                                    onClick={() => scrollToTOCEntry(entry)}
+                                  >
+                                    <span className={`font-mono min-w-[1rem] ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                                      {entry.id}.
+                                    </span>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-1 mb-0.5 flex-wrap">
+                                        <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                                          {entry.title}
+                                        </span>
+                                        <span className={`px-1 py-0.5 border rounded text-xs ${getTopicColor(entry.topic)}`}>
+                                          {entry.topic}
+                                        </span>
+                                      </div>
+                                      <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                                        <span className="flex items-center gap-1">
+                                          <MapPin size={10} />
+                                          Page {entry.page}
+                                        </span>
+                                        <span>Level {entry.level}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {searchTOC(note.tableOfContents.entries, tocSearchQuery).length > 10 && (
+                                  <div className={`text-xs text-center py-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                                    +{searchTOC(note.tableOfContents.entries, tocSearchQuery).length - 10} more sections
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* By Topic */}
+                            <div className={`rounded-lg p-3 ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                              <h5 className={`text-xs font-semibold mb-2 flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                <Tag size={12} />
+                                By Topic
+                              </h5>
+                              <div className="space-y-2">
+                                {Object.entries(note.tableOfContents.by_topic).map(([topic, entries]) => {
+                                  const filteredEntries = searchTOC(entries, tocSearchQuery);
+                                  if (filteredEntries.length === 0) return null;
+
+                                  return (
+                                    <div key={topic}>
+                                      <button
+                                        onClick={() => toggleTOCSection(`note-${note.id}-topic-${topic}`)}
+                                        className="flex items-center gap-2 mb-1 w-full text-left text-xs"
+                                      >
+                                        {expandedTOC[`note-${note.id}-topic-${topic}`] ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                        <span className={`px-2 py-1 border rounded-full text-xs font-medium ${getTopicColor(topic)}`}>
+                                          {topic}
+                                        </span>
+                                        <span className={isDark ? 'text-gray-500' : 'text-gray-600'}>
+                                          ({filteredEntries.length})
+                                        </span>
+                                      </button>
+                                      {expandedTOC[`note-${note.id}-topic-${topic}`] && (
+                                        <div className="ml-4 space-y-0.5">
+                                          {filteredEntries.slice(0, 5).map(entry => (
+                                            <div
+                                              key={entry.id}
+                                              className={`text-xs transition-colors py-0.5 cursor-pointer ${
+                                                selectedTOCEntry?.id === entry.id
+                                                  ? isDark ? 'text-purple-300 bg-purple-900/20' : 'text-purple-700 bg-purple-50'
+                                                  : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                                              }`}
+                                              onClick={() => scrollToTOCEntry(entry)}
+                                            >
+                                              • {entry.title} <span className={isDark ? 'text-gray-600' : 'text-gray-500'}>
+                                                (Page {entry.page})
+                                              </span>
+                                            </div>
+                                          ))}
+                                          {filteredEntries.length > 5 && (
+                                            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                                              +{filteredEntries.length - 5} more
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Detailed Sections */}
+                    {note.sections && note.sections.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          Structured Content
+                        </h4>
+                        <div className="space-y-2">
+                          {note.sections.slice(0, 3).map((section, idx) => (
+                            <div key={idx} className={`rounded-lg p-3 transition-colors ${
+                              isDark ? 'bg-gray-900/50 hover:bg-gray-900/70' : 'bg-gray-100 hover:bg-gray-200'
+                            }`}>
+                              <div className="flex items-start justify-between mb-1">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <h5 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                      {section.title}
+                                    </h5>
+                                    {section.topic && (
+                                      <span className={`px-2 py-0.5 border rounded text-xs ${getTopicColor(section.topic)}`}>
+                                        {section.topic}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(section.level || section.page) && (
+                                    <div className={`flex items-center gap-2 text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                                      {section.level && <span>Level: H{section.level}</span>}
+                                      {section.page && <span>• Page: {section.page}</span>}
+                                    </div>
+                                  )}
+                                  <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    {section.desc}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {note.sections.length > 3 && (
+                            <div className={`text-xs text-center py-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                              +{note.sections.length - 3} more sections
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key Concepts */}
+                    {note.concepts && note.concepts.length > 0 && (
+                      <div className={`pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          Key Concepts
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {note.concepts.slice(0, 6).map((concept, idx) => (
+                            <span key={idx} className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                              isDark ? 'bg-gray-700/80 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}>
+                              {concept}
+                            </span>
+                          ))}
+                          {note.concepts.length > 6 && (
+                            <span className={`px-3 py-1.5 rounded text-xs font-medium ${
+                              isDark ? 'text-blue-400' : 'text-blue-600'
+                            }`}>
+                              +{note.concepts.length - 6} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Main render
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isDark ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'
+    }`}>
+      {/* Navigation */}
+      <nav className={`border-b px-6 py-4 ${
+        isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white shadow-sm'
+      }`}>
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+              <FileText className="text-white" size={24} />
+            </div>
+            <span className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              NoteMap
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCurrentPage('home')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 ${
+                currentPage === 'home'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/50'
+                  : isDark ? 'text-gray-300 hover:bg-gray-800 hover:scale-105' : 'text-gray-700 hover:bg-gray-100 hover:scale-105'
+              }`}
+            >
+              <Home size={18} />
+              Home
+            </button>
+            <button
+              onClick={() => setCurrentPage('upload')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 ${
+                currentPage === 'upload'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/50'
+                  : isDark ? 'text-gray-300 hover:bg-gray-800 hover:scale-105' : 'text-gray-700 hover:bg-gray-100 hover:scale-105'
+              }`}
+            >
+              <Upload size={18} />
+              Upload
+            </button>
+            <button
+              onClick={() => setCurrentPage('dashboard')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 ${
+                currentPage === 'dashboard'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/50'
+                  : isDark ? 'text-gray-300 hover:bg-gray-800 hover:scale-105' : 'text-gray-700 hover:bg-gray-100 hover:scale-105'
+              }`}
+            >
+              <LayoutDashboard size={18} />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Settings size={20} />
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className={`border-b px-6 py-4 ${
+          isDark ? 'border-gray-800 bg-gray-800' : 'border-gray-200 bg-gray-50'
+        }`}>
+          <div className="max-w-7xl mx-auto">
+            <h3 className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Backend Settings
+            </h3>
+            
+            {backendInfo && (
+              <div className={`mb-4 p-4 rounded-lg ${isDark ? 'bg-gray-900/50' : 'bg-white'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    backendInfo.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Status: {backendInfo.status === 'healthy' ? '✓ Online' : '✗ Offline'}
+                  </span>
+                </div>
+                <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {backendInfo.message}
+                </p>
+                {backendInfo.features && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {backendInfo.features.map((feature, idx) => (
+                      <span key={idx} className={`text-xs px-2 py-1 rounded ${
+                        isDark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="flex gap-3 items-center">
+              <label className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                API Endpoint:
+              </label>
+              <input
+                type="text"
+                value={apiEndpoint}
+                onChange={(e) => setApiEndpoint(e.target.value)}
+                placeholder="http://localhost:5000/api/upload"
+                className={`flex-1 max-w-xl rounded-lg px-4 py-2 focus:outline-none ${
+                  isDark 
+                    ? 'bg-gray-900 border border-gray-700 text-white focus:border-purple-500' 
+                    : 'bg-white border border-gray-300 text-gray-900 focus:border-purple-500'
+                }`}
+              />
+              <button
+                onClick={checkBackendHealth}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all"
+              >
+                Test Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page Content */}
+      {currentPage === 'home' && renderHomePage()}
+      {currentPage === 'upload' && renderUploadPage()}
+      {currentPage === 'dashboard' && renderDashboard()}
+
+      {/* Preview Modal */}
+      {showPreview && previewFile && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={closePreview}
+        >
+          <div 
+            className={`relative max-w-6xl w-full max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl ${
+              isDark ? 'bg-gray-900' : 'bg-white'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between p-4 border-b ${
+              isDark ? 'border-gray-800' : 'border-gray-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <FileText className={isDark ? 'text-purple-400' : 'text-purple-600'} size={24} />
+                <div>
+                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {previewFile.name}
+                  </h3>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {previewFile.size}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closePreview}
+                className={`p-2 rounded-lg transition-all hover:scale-110 ${
+                  isDark ? 'hover:bg-gray-800 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className={`p-6 overflow-auto max-h-[calc(90vh-80px)] ${
+              isDark ? 'bg-gray-800' : 'bg-gray-50'
+            }`}>
+              {previewFile.type && previewFile.type.startsWith('image/') ? (
+                <div className="flex items-center justify-center">
+                  <img 
+                    src={previewFile.previewUrl} 
+                    alt={previewFile.name}
+                    className="max-w-full h-auto rounded-lg shadow-xl"
+                  />
+                </div>
+              ) : previewFile.type === 'application/pdf' ? (
+                <div className="w-full h-[70vh]">
+                  <iframe
+                    src={previewFile.previewUrl}
+                    className="w-full h-full rounded-lg"
+                    title={previewFile.name}
+                  />
+                </div>
+              ) : (
+                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <FileText size={64} className="mx-auto mb-4 opacity-50" />
+                  <p>Preview not available for this file type</p>
+                </div>
+              )}
+            </div>
+
+            <div className={`flex items-center justify-between p-4 border-t ${
+              isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {previewFile.type && previewFile.type.startsWith('image/') ? 'Image Preview' : 'PDF Preview'}
+              </div>
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = previewFile.previewUrl;
+                  link.download = previewFile.name;
+                  link.click();
+                }}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all flex items-center gap-2"
+              >
+                <Download size={16} />
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
