@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Home, Upload, LayoutDashboard, Sun, Moon, FileText, Search, Download, ChevronDown, ChevronRight, X, CheckCircle, Clock, AlertCircle, Eye, BookOpen, Tag, MapPin, Sparkles, Brain, Zap, ChevronLeft, Shuffle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as pdfjsLib from "pdfjs-dist";
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 export default function NoteMap() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isDark, setIsDark] = useState(true);
