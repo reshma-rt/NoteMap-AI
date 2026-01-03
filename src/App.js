@@ -1360,18 +1360,8 @@ const renderDashboard = () => {
                     return;
                   }
 
-                  const content = generateCombinedMarkdown(notes, selectedSubject);
-                  const blob = new Blob([content], { type: 'text/plain' });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `${selectedSubject.replace(/\s+/g, '_')}_All_Notes.txt`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                  
-                  alert(`Downloaded ${notes.length} notes from ${selectedSubject}!`);
+                  // Call downloadAllNotes with 'pdf' format
+                  downloadAllNotes('pdf');
                 }}
                 disabled={filteredNotes.length === 0}
                 className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
@@ -1704,6 +1694,7 @@ const renderDashboard = () => {
     </div>
   );
 };
+
  const renderFlashcardModal = () => {
     if (!showFlashcardModal || !activeNoteForFlashcards) return null;
 
