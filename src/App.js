@@ -1277,264 +1277,389 @@ const renderHomePage = () => {
     </div>
   );
 
- const renderDashboard = () => {
-    const filteredNotes = getFilteredNotes();
-    const availableSubjects = getAvailableSubjects();
+const generateCombinedMarkdown = (notes, subject) => {
+  let content = [];
+  content.push(`# ${subject} - Complete Notes Collection\n`);
+  content.push(`**Generated:** ${new Date().toLocaleString()}\n`);
+  content.push(`**Total Documents:** ${notes.length}\n`);
+  content.push('---\n');
 
-    return (
-      <div className="min-h-screen px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header Section */}
-          <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <h1 className="text-4xl md:text-5xl font-extrabold mb-3 tracking-tight">
-                <span className={isDark ? 'text-white' : 'text-slate-800'}>My Organized </span>
-                <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  Notes
-                </span>
-              </h1>
-              <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                You have <span className="font-semibold text-purple-500">{processedNotes.length}</span> {processedNotes.length === 1 ? 'note' : 'notes'} organized and ready to study.
-              </p>
-            </div>
+  notes.forEach((note, idx) => {
+    content.push(`\n## Document ${idx + 1}: ${note.filename}\n`);
+    content.push(`**Subject:** ${note.subject} | **Date:** ${note.date}\n`);
+    
+    if (note.tableOfContents) {
+      content.push('\n### 📑 Table of Contents\n');
+      note.tableOfContents.entries.forEach(entry => {
+        const indent = '  '.repeat(entry.level - 1);
+        content.push(`${indent}- **${entry.title}** (Page ${entry.page})`);
+      });
+      content.push('');
+    }
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              {processedNotes.length > 0 && (
-                <button
-                  onClick={() => downloadAllNotes('pdf')}
-                  className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
-                    isDark 
-                      ? 'border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500' 
-                      : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50 hover:text-slate-900 shadow-sm'
-                  }`}
-                >
-                  <Download size={18} />
-                  Download All PDF
-                </button>
-              )}
+    content.push('\n### 📝 Content\n');
+    note.sections.forEach(section => {
+      const heading = '#'.repeat((section.level || 1) + 3);
+      content.push(`\n${heading} ${section.title}`);
+      if (section.topic) {
+        content.push(`\n> **Topic:** ${section.topic}`);
+      }
+      if (section.page) {
+        content.push(`> **Page:** ${section.page}\n`);
+      }
+      content.push(`${section.desc}\n`);
+    });
+
+    if (note.concepts && note.concepts.length > 0) {
+      content.push('\n### 🔑 Key Concepts\n');
+      note.concepts.forEach(concept => {
+        content.push(`- \`${concept}\``);
+      });
+    }
+
+    content.push('\n---\n');
+  });
+
+  return content.join('\n');
+};
+const renderDashboard = () => {
+  const filteredNotes = getFilteredNotes();
+  const availableSubjects = getAvailableSubjects();
+
+  return (
+    <div className="min-h-screen px-6 py-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-extrabold mb-3 tracking-tight">
+              <span className={isDark ? 'text-white' : 'text-slate-800'}>My Organized </span>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Notes
+              </span>
+            </h1>
+            <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+              You have <span className="font-semibold text-purple-500">{filteredNotes.length}</span> {filteredNotes.length === 1 ? 'note' : 'notes'}
+              {selectedSubject !== 'All Subjects' && ` in ${selectedSubject}`}
+              {searchQuery && ' matching your search'}.
+            </p>
+          </div>
+
+
+{/* Action Buttons */}
+<div className="flex gap-3">
+  {processedNotes.length > 0 && (
+    <button
+      onClick={() => {
+        const notes = selectedSubject === 'All Subjects' 
+          ? processedNotes 
+          : processedNotes.filter(n => n.subject === selectedSubject);
+        
+        if (notes.length === 0) {
+          alert('No notes found for this subject');
+          return;
+        }
+
+        const content = generateCombinedMarkdown(notes, selectedSubject);
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${selectedSubject.replace(/\s+/g, '_')}_All_Notes.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        alert(`Downloaded ${notes.length} notes from ${selectedSubject}!`);
+      }}
+      disabled={filteredNotes.length === 0}
+      className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
+        filteredNotes.length === 0
+          ? isDark ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+          : isDark 
+            ? 'border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500' 
+            : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50 hover:text-slate-900 shadow-sm'
+      }`}
+    >
+      <Download size={18} />
+      Download {selectedSubject === 'All Subjects' ? 'All' : selectedSubject}
+    </button>
+  )}
+  <button
+    onClick={() => setCurrentPage('upload')}
+    className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 flex items-center gap-2"
+  >
+    <Upload size={18} />
+    Upload New Note
+  </button>
+</div>
+        </div>
+
+        {/* Search and Filter Bar */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="flex-1 relative group">
+            <Search size={20} className={`absolute left-4 top-1/2 transform -translate-y-1/2 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-purple-400' : 'text-slate-400 group-focus-within:text-purple-500'}`} />
+            <input
+              type="text"
+              placeholder="Search by title, subject, or content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full pl-12 pr-4 py-3.5 rounded-xl transition-all duration-300 outline-none border ${
+                isDark
+                  ? 'bg-gray-800/50 text-white border-gray-700 focus:border-purple-500 focus:bg-gray-800'
+                  : 'bg-white text-slate-900 border-gray-200 shadow-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-100'
+              }`}
+            />
+            {searchQuery && (
               <button
-                onClick={() => setCurrentPage('upload')}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                onClick={() => setSearchQuery('')}
+                className={`absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-colors ${
+                  isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                }`}
               >
-                <Upload size={18} />
-                Upload New Note
+                <X size={16} />
               </button>
-            </div>
+            )}
           </div>
+          <div className="relative">
+            <select
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className={`appearance-none w-full md:w-64 px-4 py-3.5 rounded-xl transition-all duration-300 outline-none cursor-pointer border ${
+                isDark
+                  ? 'bg-gray-800/50 text-white border-gray-700 hover:bg-gray-800'
+                  : 'bg-white text-slate-900 border-gray-200 shadow-sm hover:border-purple-300'
+              }`}
+            >
+              {availableSubjects.map(subject => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className={`absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-400' : 'text-slate-400'}`} />
+          </div>
+        </div>
 
-          {/* Search and Filter Bar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 relative group">
-              <Search size={20} className={`absolute left-4 top-1/2 transform -translate-y-1/2 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-purple-400' : 'text-slate-400 group-focus-within:text-purple-500'}`} />
-              <input
-                type="text"
-                placeholder="Search by title, subject, or content..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-12 pr-4 py-3.5 rounded-xl transition-all duration-300 outline-none border ${
-                  isDark
-                    ? 'bg-gray-800/50 text-white border-gray-700 focus:border-purple-500 focus:bg-gray-800'
-                    : 'bg-white text-slate-900 border-gray-200 shadow-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-100'
-                }`}
-              />
+        {/* Content Grid */}
+        {filteredNotes.length === 0 ? (
+          <div className={`flex flex-col items-center justify-center py-24 rounded-3xl border-2 border-dashed transition-all ${
+            isDark 
+              ? 'bg-gray-800/20 border-gray-700' 
+              : 'bg-slate-50/50 border-slate-200'
+          }`}>
+            <div className={`p-6 rounded-full mb-6 ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}>
+              <FileText size={48} className={isDark ? 'text-gray-600' : 'text-slate-300'} />
             </div>
-            <div className="relative">
-              <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                className={`appearance-none w-full md:w-64 px-4 py-3.5 rounded-xl transition-all duration-300 outline-none cursor-pointer border ${
-                  isDark
-                    ? 'bg-gray-800/50 text-white border-gray-700 hover:bg-gray-800'
-                    : 'bg-white text-slate-900 border-gray-200 shadow-sm hover:border-purple-300'
+            <h3 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              No notes found
+            </h3>
+            <p className={`text-center max-w-md mb-8 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+              {processedNotes.length === 0 
+                ? 'Upload your first note to get started!'
+                : searchQuery 
+                  ? `No results for "${searchQuery}"`
+                  : `No notes in ${selectedSubject}`
+              }
+            </p>
+            <button
+              onClick={() => setCurrentPage('upload')}
+              className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20"
+            >
+              Upload Note Now
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredNotes.map(note => (
+              <div
+                key={note.id}
+                className={`group relative flex flex-col justify-between rounded-2xl p-6 transition-all duration-300 hover:-translate-y-2 border ${
+                  isDark 
+                    ? 'bg-gray-800 border-gray-700 shadow-lg hover:shadow-purple-500/10' 
+                    : 'bg-white border-transparent shadow-[0_10px_40px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.1)]'
                 }`}
               >
-                {availableSubjects.map(subject => (
-                  <option key={subject} value={subject}>{subject}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} className={`absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none ${isDark ? 'text-gray-400' : 'text-slate-400'}`} />
-            </div>
-          </div>
-
-          {/* Content Grid */}
-          {filteredNotes.length === 0 ? (
-            <div className={`flex flex-col items-center justify-center py-24 rounded-3xl border-2 border-dashed transition-all ${
-              isDark 
-                ? 'bg-gray-800/20 border-gray-700' 
-                : 'bg-slate-50/50 border-slate-200'
-            }`}>
-              <div className={`p-6 rounded-full mb-6 ${isDark ? 'bg-gray-800' : 'bg-white shadow-sm'}`}>
-                <FileText size={48} className={isDark ? 'text-gray-600' : 'text-slate-300'} />
-              </div>
-              <h3 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                No notes found
-              </h3>
-              <p className={`text-center max-w-md mb-8 ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                {searchQuery 
-                  ? "We couldn't find any notes matching your search. Try a different keyword." 
-                  : "Your library is empty. Upload your first note to get started with AI-powered organization."}
-              </p>
-              {!searchQuery && (
-                <button
-                  onClick={() => setCurrentPage('upload')}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20"
-                >
-                  Upload Note Now
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredNotes.map(note => (
-                <div
-                  key={note.id}
-                  className={`group relative flex flex-col justify-between rounded-2xl p-6 transition-all duration-300 hover:-translate-y-2 ${
-                  isDark 
-                       ? 'bg-gray-800 border-gray-700 shadow-lg' 
-                      : 'bg-white border-transparent shadow-[0_10px_40px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.1)]'
-}`}
-                >
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0 pr-4">
-                      <h3 className={`text-xl font-bold mb-2 truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                        {note.filename}
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject)}`}>
-                          {note.subject}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-slate-100 text-slate-500'}`}>
-                          {note.date}
-                        </span>
-                      </div>
+                {/* Card Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className={`text-xl font-bold mb-2 truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                      {note.filename}
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject)}`}>
+                        {note.subject}
+                      </span>
+                      <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-slate-100 text-slate-500'}`}>
+                        {note.date}
+                      </span>
                     </div>
                   </div>
+                </div>
 
-                  {/* TOC Preview Section */}
-                  {note.tableOfContents && (
-                    <div className={`mb-4 p-3 rounded-xl text-sm ${isDark ? 'bg-gray-900/50' : 'bg-slate-50'}`}>
-                      <button
-                        onClick={() => toggleTOCSection(note.id)}
-                        className={`w-full flex items-center justify-between font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <BookOpen size={16} />
-                          Outline ({note.tableOfContents.entries.length})
-                        </span>
-                        {expandedTOC[note.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      
-                      {expandedTOC[note.id] && (
-                        <div className="mt-3 space-y-1.5 pl-1 max-h-32 overflow-y-auto scrollbar-thin">
-                          {note.tableOfContents.entries.slice(0, 4).map((entry, idx) => (
-                            <div key={idx} className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-slate-600'}`}>
-                              <span className="opacity-50 mr-2">•</span>{entry.title}
+                {/* TOC Preview Section with UPDATED HEADER */}
+                {note.tableOfContents && (
+                  <div className={`mb-4 p-3 rounded-xl text-sm ${isDark ? 'bg-gray-900/50' : 'bg-slate-50'}`}>
+                    <button
+                      onClick={() => toggleTOCSection(note.id)}
+                      className={`w-full flex items-center justify-between font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <BookOpen size={16} />
+                        Table of Contents ({note.tableOfContents.total_sections} sections)
+                      </span>
+                      {expandedTOC[note.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                    
+                    {expandedTOC[note.id] && (
+                      <div className="mt-3 space-y-1.5 pl-1 max-h-32 overflow-y-auto scrollbar-thin">
+                        {note.tableOfContents.entries.slice(0, 4).map((entry, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className={`text-xs opacity-50 ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>
+                              {entry.id}.
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs truncate ${isDark ? 'text-gray-300' : 'text-slate-700'}`}>
+                                {entry.title}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTopicColor(entry.topic)}`}>
+                                  {entry.topic}
+                                </span>
+                                <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>
+                                  Page {entry.page}
+                                </span>
+                              </div>
                             </div>
-                          ))}
-                          {note.tableOfContents.entries.length > 4 && (
-                            <div className={`text-xs italic pt-1 ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>
-                              +{note.tableOfContents.entries.length - 4} more sections...
-                            </div>
-                          )}
+                          </div>
+                        ))}
+                        {note.tableOfContents.entries.length > 4 && (
+                          <div className={`text-xs italic pt-1 ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>
+                            +{note.tableOfContents.entries.length - 4} more sections...
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Study Outline Section */}
+                {note.sections && note.sections.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                      <LayoutDashboard size={14} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                      Study Outline
+                    </h4>
+                    <div className={`p-3 rounded-xl text-xs space-y-2 ${isDark ? 'bg-gray-900/30' : 'bg-slate-50'}`}>
+                      {note.sections.slice(0, 2).map((section, idx) => (
+                        <div key={idx} className="border-l-2 border-indigo-500 pl-2">
+                          <p className={`font-medium mb-1 ${isDark ? 'text-gray-200' : 'text-slate-800'}`}>
+                            {section.title}
+                          </p>
+                          <p className={`line-clamp-2 ${isDark ? 'text-gray-400' : 'text-slate-600'}`}>
+                            {section.desc}
+                          </p>
                         </div>
+                      ))}
+                      {note.sections.length > 2 && (
+                        <p className={`text-[10px] italic ${isDark ? 'text-gray-500' : 'text-slate-400'}`}>
+                          +{note.sections.length - 2} more sections
+                        </p>
                       )}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Concepts Tags */}
-                  {note.concepts && note.concepts.length > 0 && (
-                    <div className="mb-6 flex-1">
-                      <div className="flex flex-wrap gap-1.5">
-                        {note.concepts.slice(0, 3).map((concept, idx) => (
-                          <span
-                            key={idx}
-                            className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-medium ${
+                {/* Key Concepts with UPDATED HEADER */}
+                {note.concepts && note.concepts.length > 0 && (
+                  <div className="mb-6 flex-1">
+                    <h4 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                      <Tag size={14} className={isDark ? 'text-purple-400' : 'text-purple-600'} />
+                      Key Concepts
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {note.concepts.slice(0, 4).map((concept, idx) => (
+                        <span
+                          key={idx}
+                          className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-medium ${
+                            isDark 
+                              ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-900/50' 
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}
+                        >
+                          {concept}
+                        </span>
+                      ))}
+                      {note.concepts.length > 4 && (
+                        <span className={`px-2 py-1 rounded text-[10px] font-medium ${
+                          isDark ? 'text-purple-400' : 'text-purple-600'
+                        }`}>
+                          +{note.concepts.length - 4}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Card Actions Footer */}
+                <div className="flex items-center gap-2 mt-auto pt-4 border-t border-dashed border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => handlePreview(note)}
+                    className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
+                      isDark 
+                        ? 'bg-purple-600/10 text-purple-400 hover:bg-purple-600 hover:text-white' 
+                        : 'bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white'
+                    }`}
+                  >
+                    <Eye size={16} />
+                    View Note
+                  </button>
+
+                  <div className="relative group/dropdown">
+                    <button className={`p-2 rounded-lg transition-colors ${
+                      isDark 
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                        : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
+                    }`}>
+                      <Download size={18} />
+                    </button>
+                    
+                    {/* Hover Dropdown */}
+                    <div className="absolute bottom-full right-0 mb-2 w-32 hidden group-hover/dropdown:block z-20">
+                      <div className={`p-1 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                        {['md', 'txt', 'json'].map((fmt) => (
+                          <button
+                            key={fmt}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadNote(fmt, note);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg uppercase font-medium tracking-wide ${
                               isDark 
-                                ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-900/50' 
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
                             }`}
                           >
-                            {concept}
-                          </span>
+                            {fmt}
+                          </button>
                         ))}
                       </div>
                     </div>
-                  )}
-
-                  {/* Card Actions Footer */}
-                  <div className="flex items-center gap-2 mt-auto pt-4 border-t border-dashed border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => handlePreview(note)}
-                      className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
-                        isDark 
-                          ? 'bg-purple-600/10 text-purple-400 hover:bg-purple-600 hover:text-white' 
-                          : 'bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white'
-                      }`}
-                    >
-                      <Eye size={16} />
-                      View Note
-                    </button>
-                    
-                    <button
-                      onClick={() => startFlashcards(note)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isDark 
-                          ? 'bg-gray-700 text-blue-400 hover:bg-blue-600 hover:text-white' 
-                          : 'bg-gray-100 text-blue-600 hover:bg-blue-600 hover:text-white'
-                      }`}
-                      title="Study Flashcards"
-                    >
-                      <Brain size={18} />
-                    </button>
-
-                    <div className="relative group/dropdown">
-                      <button className={`p-2 rounded-lg transition-colors ${
-                        isDark 
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                          : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
-                      }`}>
-                        <Download size={18} />
-                      </button>
-                      
-                      {/* Hover Dropdown */}
-                      <div className="absolute bottom-full right-0 mb-2 w-32 hidden group-hover/dropdown:block z-20">
-                        <div className={`p-1 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                          {['pdf', 'txt', 'docx'].map((fmt) => (
-                            <button
-                              key={fmt}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                downloadNote(fmt, note);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-sm rounded-lg uppercase font-medium tracking-wide ${
-                                isDark 
-                                  ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
-                                  : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
-                              }`}
-                            >
-                              {fmt}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
                   </div>
-
-                  {downloadStatus[note.id] && (
-                    <div className="absolute inset-x-0 bottom-0 bg-emerald-500/90 text-white text-xs py-1 text-center rounded-b-2xl backdrop-blur-sm animate-fade-in">
-                      {downloadStatus[note.id]}
-                    </div>
-                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                {downloadStatus[note.id] && (
+                  <div className="absolute inset-x-0 bottom-0 bg-emerald-500/90 text-white text-xs py-1 text-center rounded-b-2xl backdrop-blur-sm animate-fade-in">
+                    {downloadStatus[note.id]}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
  const renderFlashcardModal = () => {
     if (!showFlashcardModal || !activeNoteForFlashcards) return null;
