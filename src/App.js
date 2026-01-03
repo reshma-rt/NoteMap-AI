@@ -1486,7 +1486,7 @@ const renderDashboard = () => {
                       {note.filename}
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {/* FIX #3: Display SUBJECT instead of filename */}
+                      {/* Display SUBJECT instead of filename */}
                       <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject || 'Other')}`}>
                         {note.subject || 'General'}
                       </span>
@@ -1601,8 +1601,10 @@ const renderDashboard = () => {
                   </div>
                 )}
 
-                {/* Card Actions Footer */}
+                {/* Card Actions Footer - WITH FLASHCARD BUTTON */}
                 <div className="flex items-center gap-2 mt-auto pt-4 border-t border-dashed border-gray-200 dark:border-gray-700">
+                  
+                  {/* View Note Button */}
                   <button
                     onClick={() => handlePreview(note)}
                     className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
@@ -1615,22 +1617,22 @@ const renderDashboard = () => {
                     View Note
                   </button>
 
-                  {/* FIX #2: Flashcard Button Restored */}
+                  {/* 🧠 FLASHCARD BUTTON - THE MISSING BRAIN ICON */}
                   <button
                     onClick={() => startFlashcards(note)}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2.5 rounded-lg transition-all duration-300 ${
                       isDark 
-                        ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' 
-                        : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
+                        ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/30' 
+                        : 'bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white border border-blue-200'
                     }`}
                     title="Study with Flashcards"
                   >
-                    <Zap size={18} />
+                    <Brain size={18} />
                   </button>
 
-                  {/* FIX #1: Download Dropdown with PDF, DOCX, TXT */}
+                  {/* Download Dropdown with PDF, DOCX, TXT */}
                   <div className="relative group/dropdown">
-                    <button className={`p-2 rounded-lg transition-colors ${
+                    <button className={`p-2.5 rounded-lg transition-colors ${
                       isDark 
                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
                         : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
@@ -1638,7 +1640,7 @@ const renderDashboard = () => {
                       <Download size={18} />
                     </button>
                     
-                    {/* Hover Dropdown - UPDATED WITH PDF/DOCX/TXT */}
+                    {/* Hover Dropdown Menu */}
                     <div className="absolute bottom-full right-0 mb-2 w-40 hidden group-hover/dropdown:block z-20">
                       <div className={`p-1 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
                         <button
@@ -1688,6 +1690,7 @@ const renderDashboard = () => {
                   </div>
                 </div>
 
+                {/* Download Status Message */}
                 {downloadStatus[note.id] && (
                   <div className="absolute inset-x-0 bottom-0 bg-emerald-500/90 text-white text-xs py-1 text-center rounded-b-2xl backdrop-blur-sm animate-fade-in">
                     {downloadStatus[note.id]}
@@ -1701,7 +1704,6 @@ const renderDashboard = () => {
     </div>
   );
 };
-
  const renderFlashcardModal = () => {
     if (!showFlashcardModal || !activeNoteForFlashcards) return null;
 
