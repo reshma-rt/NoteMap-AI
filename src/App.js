@@ -1322,6 +1322,7 @@ const generateCombinedMarkdown = (notes, subject) => {
 
   return content.join('\n');
 };
+
 const renderDashboard = () => {
   const filteredNotes = getFilteredNotes();
   const availableSubjects = getAvailableSubjects();
@@ -1345,55 +1346,54 @@ const renderDashboard = () => {
             </p>
           </div>
 
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            {processedNotes.length > 0 && (
+              <button
+                onClick={() => {
+                  const notes = selectedSubject === 'All Subjects' 
+                    ? processedNotes 
+                    : processedNotes.filter(n => n.subject === selectedSubject);
+                  
+                  if (notes.length === 0) {
+                    alert('No notes found for this subject');
+                    return;
+                  }
 
-{/* Action Buttons */}
-<div className="flex gap-3">
-  {processedNotes.length > 0 && (
-    <button
-      onClick={() => {
-        const notes = selectedSubject === 'All Subjects' 
-          ? processedNotes 
-          : processedNotes.filter(n => n.subject === selectedSubject);
-        
-        if (notes.length === 0) {
-          alert('No notes found for this subject');
-          return;
-        }
-
-        const content = generateCombinedMarkdown(notes, selectedSubject);
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${selectedSubject.replace(/\s+/g, '_')}_All_Notes.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        alert(`Downloaded ${notes.length} notes from ${selectedSubject}!`);
-      }}
-      disabled={filteredNotes.length === 0}
-      className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
-        filteredNotes.length === 0
-          ? isDark ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
-          : isDark 
-            ? 'border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500' 
-            : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50 hover:text-slate-900 shadow-sm'
-      }`}
-    >
-      <Download size={18} />
-      Download {selectedSubject === 'All Subjects' ? 'All' : selectedSubject}
-    </button>
-  )}
-  <button
-    onClick={() => setCurrentPage('upload')}
-    className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 flex items-center gap-2"
-  >
-    <Upload size={18} />
-    Upload New Note
-  </button>
-</div>
+                  const content = generateCombinedMarkdown(notes, selectedSubject);
+                  const blob = new Blob([content], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `${selectedSubject.replace(/\s+/g, '_')}_All_Notes.txt`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  
+                  alert(`Downloaded ${notes.length} notes from ${selectedSubject}!`);
+                }}
+                disabled={filteredNotes.length === 0}
+                className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
+                  filteredNotes.length === 0
+                    ? isDark ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                    : isDark 
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500' 
+                      : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50 hover:text-slate-900 shadow-sm'
+                }`}
+              >
+                <Download size={18} />
+                Download {selectedSubject === 'All Subjects' ? 'All' : selectedSubject}
+              </button>
+            )}
+            <button
+              onClick={() => setCurrentPage('upload')}
+              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 flex items-center gap-2"
+            >
+              <Upload size={18} />
+              Upload New Note
+            </button>
+          </div>
         </div>
 
         {/* Search and Filter Bar */}
@@ -1486,8 +1486,9 @@ const renderDashboard = () => {
                       {note.filename}
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject)}`}>
-                        {note.subject}
+                      {/* FIX #3: Display SUBJECT instead of filename */}
+                      <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject || 'Other')}`}>
+                        {note.subject || 'General'}
                       </span>
                       <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-slate-100 text-slate-500'}`}>
                         {note.date}
@@ -1496,7 +1497,7 @@ const renderDashboard = () => {
                   </div>
                 </div>
 
-                {/* TOC Preview Section with UPDATED HEADER */}
+                {/* TOC Preview Section */}
                 {note.tableOfContents && (
                   <div className={`mb-4 p-3 rounded-xl text-sm ${isDark ? 'bg-gray-900/50' : 'bg-slate-50'}`}>
                     <button
@@ -1569,7 +1570,7 @@ const renderDashboard = () => {
                   </div>
                 )}
 
-                {/* Key Concepts with UPDATED HEADER */}
+                {/* Key Concepts */}
                 {note.concepts && note.concepts.length > 0 && (
                   <div className="mb-6 flex-1">
                     <h4 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
@@ -1614,6 +1615,20 @@ const renderDashboard = () => {
                     View Note
                   </button>
 
+                  {/* FIX #2: Flashcard Button Restored */}
+                  <button
+                    onClick={() => startFlashcards(note)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isDark 
+                        ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' 
+                        : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
+                    }`}
+                    title="Study with Flashcards"
+                  >
+                    <Zap size={18} />
+                  </button>
+
+                  {/* FIX #1: Download Dropdown with PDF, DOCX, TXT */}
                   <div className="relative group/dropdown">
                     <button className={`p-2 rounded-lg transition-colors ${
                       isDark 
@@ -1623,25 +1638,51 @@ const renderDashboard = () => {
                       <Download size={18} />
                     </button>
                     
-                    {/* Hover Dropdown */}
-                    <div className="absolute bottom-full right-0 mb-2 w-32 hidden group-hover/dropdown:block z-20">
+                    {/* Hover Dropdown - UPDATED WITH PDF/DOCX/TXT */}
+                    <div className="absolute bottom-full right-0 mb-2 w-40 hidden group-hover/dropdown:block z-20">
                       <div className={`p-1 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                        {['md', 'txt', 'json'].map((fmt) => (
-                          <button
-                            key={fmt}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadNote(fmt, note);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-sm rounded-lg uppercase font-medium tracking-wide ${
-                              isDark 
-                                ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
-                            }`}
-                          >
-                            {fmt}
-                          </button>
-                        ))}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadNote('pdf', note);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm rounded-lg font-medium flex items-center gap-2 ${
+                            isDark 
+                              ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
+                          }`}
+                        >
+                          <FileText size={14} className="text-red-500" />
+                          PDF
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadNote('docx', note);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm rounded-lg font-medium flex items-center gap-2 ${
+                            isDark 
+                              ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
+                          }`}
+                        >
+                          <FileText size={14} className="text-blue-500" />
+                          DOCX
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadNote('txt', note);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm rounded-lg font-medium flex items-center gap-2 ${
+                            isDark 
+                              ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-purple-600'
+                          }`}
+                        >
+                          <FileText size={14} className="text-gray-500" />
+                          TXT
+                        </button>
                       </div>
                     </div>
                   </div>
