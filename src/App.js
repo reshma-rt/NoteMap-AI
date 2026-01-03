@@ -101,13 +101,13 @@ const handleFileUpload = async (files) => {
 
   // 2. Set Loading States
   setIsProcessing(true);
-  setLoading(true); // From updated functionality
+  setLoading(true);
   setShowViewDashboardButton(false);
 
-  // Use Promise.all to handle multiple files concurrently and wait for them to finish
+  // Use Promise.all to handle multiple files concurrently
   const processingPromises = validFiles.map(async (file) => {
     
-    // FIX 1: Duplicate Check
+    // Duplicate Check
     const isDuplicate = uploadedFiles.some(f => f.name === file.name) || 
                         processedNotes.some(n => n.filename === file.name);
     
@@ -159,38 +159,47 @@ const handleFileUpload = async (files) => {
             throw new Error(result?.error || 'Processing failed');
           }
 
-          // 4. Map Data (Merging both versions)
-const processedNote = {
-  id: result.id || fileId,
-  filename: file?.name || 'Untitled_Document',
-  subject: result.subject || 'General Study',
-  date: result.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-  
-  // Counts
-  charCount: result.stats?.charCount || result.charCount || 0,
-  wordCount: result.stats?.wordCount || result.wordCount || 0,
-  
-  // Text Content
-  extractedText: result.extractedText || result.text || '',
-  preview: (result.text || '').substring(0, 150) + '...',
-  
-  // Structured Data
-  sections: result.sections || [],
-  concepts: result.concepts || [],
-  flashcards: result.flashcards || [],
-  
-  // UI Display Logic
-  totalSections: (result.sections || []).length,
-  organizedNotes: result.sections && result.sections.length > 0 
-    ? result.sections.map(s => `### ${s.title}\n${s.desc || 'No details extracted.'}`).join('\n\n')
-    : result.text || "Processing complete...", 
-    
-  // Metadata & Storage
-  timestamp: new Date().toLocaleTimeString(),
-  imagePath: result.image_path, // Key for fetching the S3 image
-  s3Url: `https://${"notemap-storage-rrt-786"}.s3.amazonaws.com/${result.image_path}` // Optional: Direct URL
-};
-          // Generate Flashcards
+          // 4. Map Data - UPDATED TO MATCH NEW LAMBDA STRUCTURE
+          const processedNote = {
+            id: result.id || fileId,
+            filename: file?.name || 'Untitled_Document',
+            
+            // NEW: Subject from Lambda
+            subject: result.subject || 'General Study',
+            
+            // Date
+            date: result.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            
+            // Statistics
+            charCount: result.charCount || 0,
+            wordCount: result.wordCount || 0,
+            
+            // Text Content
+            extractedText: result.text || '',
+            preview: (result.text || '').substring(0, 150) + '...',
+            
+            // NEW: Sections array with {title, desc} structure
+            sections: result.sections || [],
+            
+            // NEW: Concepts array
+            concepts: result.concepts || [],
+            
+            // Flashcards (generated from sections and concepts)
+            flashcards: [],
+            
+            // UI Display
+            totalSections: (result.sections || []).length,
+            
+            // Organized notes for display (using NEW structure)
+            organizedNotes: result.sections && result.sections.length > 0 
+              ? result.sections.map(s => `### ${s.title}\n${s.desc}`).join('\n\n')
+              : result.text || "Processing complete...", 
+              
+            // Metadata
+            timestamp: new Date().toLocaleTimeString()
+          };
+
+          // Generate Flashcards from sections and concepts
           processedNote.flashcards = generateFlashcards(processedNote);
           
           // 5. Update All States
@@ -217,7 +226,7 @@ const processedNote = {
             f.id === fileId ? { ...f, status: 'error', progress: 0, errorMessage: error.message } : f
           ));
           alert(`Failed to process ${file.name}: ${error.message}`);
-          resolve(); // Resolve anyway to allow loop to continue
+          resolve();
         }
       };
 
@@ -230,6 +239,7 @@ const processedNote = {
   setIsProcessing(false);
   setLoading(false);
 };
+
 
 // App.js (React)
 
@@ -244,14 +254,13 @@ const extractTextFromFile = async (file) => {
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 1.5 }); // High quality for AI reading
+      const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
       await page.render({ canvasContext: context, viewport }).promise;
-      // Convert to JPEG to keep the payload size manageable for AWS
       imagesToProcess.push(canvas.toDataURL("image/jpeg", 0.7).split(",")[1]);
     }
   } else {
@@ -283,43 +292,57 @@ const extractTextFromFile = async (file) => {
 
       const data = await res.json();
 
-      // Aggregate data from each page response
+      // NEW LAMBDA STRUCTURE: data now has sections with {title, desc}
       if (data.text) {
         allText.push(data.text);
         totalChars += data.charCount || data.text.length;
         totalWords += data.wordCount || data.text.split(/\s+/).length;
       }
       
-      // Capture the sections for the Dashboard content
-      if (data.sections) allSections.push(...data.sections);
+      // Capture sections array directly from Lambda
+      if (data.sections && Array.isArray(data.sections)) {
+        allSections.push(...data.sections);
+      }
       
-      // Capture the concepts for the Flashcards
-      if (data.concepts) allConcepts.push(...data.concepts);
+      // Capture concepts array
+      if (data.concepts && Array.isArray(data.concepts)) {
+        allConcepts.push(...data.concepts);
+      }
       
       // Update subject if detected
-      if (data.subject && data.subject !== "General") detectedSubject = data.subject;
+      if (data.subject && data.subject !== "General") {
+        detectedSubject = data.subject;
+      }
 
     } catch (err) {
       console.error("Error processing page through AWS:", err);
     }
   }
 
-  // 3. Return the complete object the Dashboard expects
+  // 3. Return the complete object matching the new Lambda structure
   return {
     success: true,
     text: allText.join("\n\n"),
-    // If no sections were found, provide a fallback "Note Summary" section
+    
+    // Sections with title and desc (not content/details)
     sections: allSections.length > 0 ? allSections : [
       { 
         title: "Note Summary", 
         desc: allText.join(" ").substring(0, 500) + "..." 
       }
     ],
-    // Clean up duplicate keywords
+    
+    // Clean up duplicate concepts
     concepts: [...new Set(allConcepts)],
+    
+    // Subject classification
     subject: detectedSubject,
+    
+    // Statistics
     wordCount: totalWords,
     charCount: totalChars,
+    
+    // Date
     date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   };
 };
@@ -736,43 +759,46 @@ const extractTextFromFile = async (file) => {
     return colors[topic] || colors['Other'];
   };
 
-  const generateFlashcards = (note) => {
-    const cards = [];
-    if (note.concepts && note.concepts.length > 0) {
-      note.concepts.forEach(concept => {
-        const relatedSection = note.sections.find(s =>
-          s.desc.toLowerCase().includes(concept.toLowerCase())
-        );
+const generateFlashcards = (note) => {
+  const cards = [];
+  
+  // Generate flashcards from concepts
+  if (note.concepts && note.concepts.length > 0) {
+    note.concepts.forEach(concept => {
+      // Find a section that mentions this concept
+      const relatedSection = note.sections.find(s =>
+        s.desc.toLowerCase().includes(concept.toLowerCase())
+      );
 
-        if (relatedSection) {
-          cards.push({
-            id: `concept-${cards.length}`,
-            front: `What is ${concept}?`,
-            back: relatedSection.desc,
-            type: 'concept',
-            subject: note.subject
-          });
-        }
-      });
-    }
+      if (relatedSection) {
+        cards.push({
+          id: `concept-${cards.length}`,
+          front: `What is ${concept}?`,
+          back: relatedSection.desc,
+          type: 'concept',
+          subject: note.subject
+        });
+      }
+    });
+  }
 
-    if (note.sections && note.sections.length > 0) {
-      note.sections.forEach((section, idx) => {
-        if (section.desc && section.desc.length > 50) {
-          cards.push({
-            id: `section-${idx}`,
-            front: `Explain: ${section.title}`,
-            back: section.desc,
-            type: 'section',
-            subject: note.subject,
-            topic: section.topic
-          });
-        }
-      });
-    }
+  // Generate flashcards from sections (using NEW structure)
+  if (note.sections && note.sections.length > 0) {
+    note.sections.forEach((section, idx) => {
+      if (section.desc && section.desc.length > 50) {
+        cards.push({
+          id: `section-${idx}`,
+          front: `Explain: ${section.title}`,
+          back: section.desc,  // NEW: using 'desc' instead of 'content'
+          type: 'section',
+          subject: note.subject
+        });
+      }
+    });
+  }
 
-    return cards;
-  };
+  return cards;
+};
 
 const startFlashcards = (note) => {
   if (!note.flashcards || note.flashcards.length === 0) {
@@ -1360,8 +1386,18 @@ const renderDashboard = () => {
                     return;
                   }
 
-                  // Call downloadAllNotes with 'pdf' format
-                  downloadAllNotes('pdf');
+                  const content = generateCombinedMarkdown(notes, selectedSubject);
+                  const blob = new Blob([content], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `${selectedSubject.replace(/\s+/g, '_')}_All_Notes.txt`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  
+                  alert(`Downloaded ${notes.length} notes from ${selectedSubject}!`);
                 }}
                 disabled={filteredNotes.length === 0}
                 className={`px-5 py-2.5 rounded-xl font-medium border transition-all duration-300 flex items-center gap-2 ${
@@ -1694,7 +1730,6 @@ const renderDashboard = () => {
     </div>
   );
 };
-
  const renderFlashcardModal = () => {
     if (!showFlashcardModal || !activeNoteForFlashcards) return null;
 
