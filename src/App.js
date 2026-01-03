@@ -1663,76 +1663,216 @@ const renderHomePage = () => {
     );
   };
 
-  const renderPreviewModal = () => {
-    if (!showPreview || !previewFile) return null;
-    const isNote = previewFile.sections !== undefined;
+const renderPreviewModal = () => {
+  if (!showPreview || !previewFile) return null;
+  
+  const isNote = previewFile.sections !== undefined;
+  const isImage = previewFile.type && previewFile.type.startsWith('image/');
+  const isPDF = previewFile.type === 'application/pdf';
 
-    return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div className={`max-w-5xl w-full my-8 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-          <div className={`sticky top-0 flex items-center justify-between p-6 border-b z-10 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {previewFile.filename || previewFile.name}
-            </h2>
-            <button
-              onClick={closePreview}
-              className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
-            >
-              <X size={24} />
-            </button>
+  return (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className={`max-w-5xl w-full my-8 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+        {/* Header */}
+        <div className={`sticky top-0 flex items-center justify-between p-6 border-b z-10 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-center gap-3">
+            <FileText className={isDark ? 'text-purple-400' : 'text-purple-600'} size={24} />
+            <div>
+              <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {previewFile.filename || previewFile.name}
+              </h2>
+              {previewFile.size && (
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {previewFile.size}
+                </p>
+              )}
+            </div>
           </div>
+          <button
+            onClick={closePreview}
+            className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'}`}
+          >
+            <X size={24} />
+          </button>
+        </div>
 
-          <div className="p-6">
-            {isNote ? (
-              <div>
-                <div className="mb-8">
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    <span className={`px-4 py-2 rounded-full text-sm font-medium border ${getTopicColor(previewFile.subject)}`}>
-                      {previewFile.subject}
-                    </span>
-                    <span className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                      📅 {previewFile.date}
-                    </span>
-                  </div>
+        {/* Content */}
+        <div className={`p-6 overflow-auto max-h-[calc(90vh-180px)] ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+          {isNote ? (
+            // PROCESSED NOTE PREVIEW
+            <div>
+              <div className="mb-8">
+                <div className="flex flex-wrap gap-3 mb-4">
+                  <span className={`px-4 py-2 rounded-full text-sm font-medium border ${getTopicColor(previewFile.subject)}`}>
+                    {previewFile.subject}
+                  </span>
+                  <span className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                    📅 {previewFile.date}
+                  </span>
+                  <span className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                    📝 {previewFile.totalSections} sections
+                  </span>
                 </div>
+              </div>
 
-                <div>
-                  <h3 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Content Sections
+              {/* Table of Contents */}
+              {previewFile.tableOfContents && (
+                <div className="mb-8">
+                  <h3 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <BookOpen size={20} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                    Table of Contents ({previewFile.tableOfContents.total_sections} sections)
                   </h3>
-                  <div className="space-y-6">
-                    {previewFile.sections.map((section, idx) => (
+                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                    {previewFile.tableOfContents.entries.slice(0, 10).map((entry, idx) => (
                       <div
                         key={idx}
-                        className={`p-6 rounded-xl ${isDark ? 'bg-gray-900/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}
+                        className={`flex items-start gap-2 p-2 rounded transition-colors text-sm ${
+                          isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                        }`}
+                        style={{ paddingLeft: `${(entry.level - 1) * 1}rem` }}
                       >
-                        <h4 className={`text-xl font-bold mb-3 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                        <span className={`font-mono min-w-[2rem] ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                          {entry.id}.
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                              {entry.title}
+                            </span>
+                            <span className={`px-2 py-0.5 border rounded text-xs ${getTopicColor(entry.topic)}`}>
+                              {entry.topic}
+                            </span>
+                          </div>
+                          <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                            Page {entry.page} • Level {entry.level}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {previewFile.tableOfContents.entries.length > 10 && (
+                      <div className={`text-xs text-center py-2 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                        +{previewFile.tableOfContents.entries.length - 10} more sections
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Content Sections */}
+              <div>
+                <h3 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <LayoutDashboard size={20} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                  Study Outline
+                </h3>
+                <div className="space-y-4">
+                  {previewFile.sections.map((section, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-6 rounded-xl ${isDark ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'}`}
+                    >
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        <h4 className={`text-lg font-bold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
                           {section.title}
                         </h4>
-                        <p className={`leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {section.desc}
-                        </p>
+                        {section.topic && (
+                          <span className={`px-2 py-1 border rounded text-xs ${getTopicColor(section.topic)}`}>
+                            {section.topic}
+                          </span>
+                        )}
                       </div>
+                      {(section.level || section.page) && (
+                        <div className={`flex items-center gap-2 text-xs mb-3 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                          {section.level && <span>Level: H{section.level}</span>}
+                          {section.page && <span>• Page: {section.page}</span>}
+                        </div>
+                      )}
+                      <p className={`leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {section.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Key Concepts */}
+              {previewFile.concepts && previewFile.concepts.length > 0 && (
+                <div className="mt-8">
+                  <h3 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <Tag size={20} className={isDark ? 'text-purple-400' : 'text-purple-600'} />
+                    Key Concepts
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {previewFile.concepts.map((concept, idx) => (
+                      <span key={idx} className={`px-3 py-2 rounded text-sm font-medium ${
+                        isDark ? 'bg-gray-700/80 text-gray-200' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {concept}
+                      </span>
                     ))}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center p-12">
-                {previewFile.previewUrl && (
+              )}
+            </div>
+          ) : (
+            // RAW FILE PREVIEW (IMAGE OR PDF)
+            <div>
+              {/* IMAGE PREVIEW */}
+              {isImage && previewFile.previewUrl && (
+                <div className="flex items-center justify-center">
                   <img
                     src={previewFile.previewUrl}
-                    alt="Preview"
-                    className="max-w-full max-h-[70vh] rounded-lg"
+                    alt={previewFile.name}
+                    className="max-w-full max-h-[70vh] rounded-lg shadow-xl object-contain"
                   />
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* PDF PREVIEW */}
+              {isPDF && previewFile.previewUrl && (
+                <div className="w-full h-[70vh]">
+                  <iframe
+                    src={previewFile.previewUrl}
+                    className="w-full h-full rounded-lg"
+                    title={previewFile.name}
+                  />
+                </div>
+              )}
+
+              {/* FALLBACK */}
+              {!isImage && !isPDF && (
+                <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <FileText size={64} className="mx-auto mb-4 opacity-50" />
+                  <p>Preview not available for this file type</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className={`flex items-center justify-between p-4 border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {isNote ? 'Processed Note Preview' : isImage ? 'Image Preview' : isPDF ? 'PDF Preview' : 'File Preview'}
           </div>
+          <button
+            onClick={() => {
+              if (previewFile.previewUrl) {
+                const link = document.createElement('a');
+                link.href = previewFile.previewUrl;
+                link.download = previewFile.filename || previewFile.name;
+                link.click();
+              }
+            }}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all flex items-center gap-2"
+          >
+            <Download size={16} />
+            Download
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
  return (
       <div className={`min-h-screen transition-colors duration-300 ${isDark 
