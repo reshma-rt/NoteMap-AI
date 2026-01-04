@@ -35,161 +35,25 @@ Amplify.configure({
   }
 });
 
-// 🔥 AUTHENTICATION HOOK - MUST BE OUTSIDE THE COMPONENT
-const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem('mockUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
-  }, []);
+// 🔥 REPLACE THE ENTIRE NoteMapApp FUNCTION WITH THIS:
 
-  const signIn = async (email) => {
-    const mockUser = {
-      userId: `user-${Date.now()}`,
-      email: email,
-      name: email.split('@')[0]
-    };
-    localStorage.setItem('mockUser', JSON.stringify(mockUser));
-    setUser(mockUser);
-  };
-
-  const signOut = () => {
-    localStorage.removeItem('mockUser');
-    setUser(null);
-  };
-
-  return { user, loading, signIn, signOut };
-};
-
-// 🔥 LOGIN SCREEN COMPONENT - MUST BE OUTSIDE THE COMPONENT
-const LoginScreen = ({ onSignIn, isDark }) => {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      onSignIn('demo.user@gmail.com');
-      setIsLoading(false);
-    }, 1500);
-  };
-
-  const handleEmailSignIn = () => {
-    if (!email) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      onSignIn(email);
-      setIsLoading(false);
-    }, 1000);
-  };
-
-  return (
-    <div className={`min-h-screen flex items-center justify-center p-6 ${
-      isDark 
-        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
-        : 'bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50'
-    }`}>
-      <div className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-[120px] opacity-20 pointer-events-none ${
-        isDark ? 'bg-purple-600' : 'bg-purple-400'
-      }`}></div>
-      <div className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none ${
-        isDark ? 'bg-blue-600' : 'bg-blue-400'
-      }`}></div>
-
-      <div className={`relative max-w-md w-full p-8 rounded-3xl backdrop-blur-xl border shadow-2xl ${
-        isDark 
-          ? 'bg-gray-800/50 border-gray-700' 
-          : 'bg-white/80 border-white/20'
-      }`}>
-        <div className="text-center mb-8">
-          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
-            isDark ? 'bg-purple-600' : 'bg-purple-500'
-          }`}>
-            <Brain size={32} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">
-            Welcome to NoteMap
-          </h1>
-          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Sign in to organize your notes with AI
-          </p>
-        </div>
-
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className={`w-full py-3.5 px-4 rounded-xl font-semibold flex items-center justify-center gap-3 mb-4 transition-all duration-300 ${
-            isDark 
-              ? 'bg-white text-gray-900 hover:bg-gray-100' 
-              : 'bg-white text-gray-900 hover:bg-gray-50 shadow-md hover:shadow-lg'
-          } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          {isLoading ? 'Signing in...' : 'Continue with Google'}
-        </button>
-
-        <div className="relative my-6">
-          <div className={`absolute inset-0 flex items-center ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-            <div className="w-full border-t border-current"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className={`px-4 ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600'}`}>
-              Or continue with email
-            </span>
-          </div>
-        </div>
-
-        <div>
-          <input
-            type="email"
-            placeholder="your.email@gmail.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && email && !isLoading) {
-                handleEmailSignIn();
-              }
-            }}
-            className={`w-full px-4 py-3.5 rounded-xl mb-4 outline-none transition-all border ${
-              isDark 
-                ? 'bg-gray-900/50 text-white border-gray-700 focus:border-purple-500' 
-                : 'bg-gray-50 text-gray-900 border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100'
-            }`}
-            disabled={isLoading}
-          />
-          <button
-            onClick={handleEmailSignIn}
-            disabled={isLoading || !email}
-            className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-300 ${
-              isLoading || !email
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 hover:scale-105'
-            } text-white shadow-lg shadow-purple-500/25`}
-          >
-            {isLoading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </div>
-
-        <p className={`text-xs text-center mt-6 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-          By signing in, you agree to our Terms of Service and Privacy Policy
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// 🔥 MAIN APP COMPONENT
 function NoteMapApp() {
+  return (
+    <Authenticator 
+      socialProviders={['google']}
+      loginMechanisms={['email']}
+      signUpAttributes={['email']}
+    >
+      {({ signOut, user }) => (
+        <NoteMapAppContent signOut={signOut} user={user} />
+      )}
+    </Authenticator>
+  );
+}
+
+// 🔥 ADD THIS NEW COMPONENT RIGHT AFTER NoteMapApp:
+function NoteMapAppContent({ signOut, user }) {
   const [currentPage, setCurrentPage] = useState('home');
   const [isDark, setIsDark] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState('All Subjects');
@@ -215,43 +79,37 @@ function NoteMapApp() {
   const [flashcards, setFlashcards] = useState([]);
   const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const { user, loading: authLoading, signIn, signOut } = useAuth();
   
   const fileInputRef = useRef(null);
 
-   useEffect(() => {
-    loadUserSession();
-    loadUserNotes();
-  }, []);
-
-  const loadUserSession = async () => {
-    try {
-      const session = await fetchAuthSession();
-      setCurrentUser(session.userSub); // This is the unique user ID
-    } catch (error) {
-      console.error('Error loading session:', error);
+  useEffect(() => {
+    if (user?.userId) {
+      loadUserNotes(user.userId);
     }
-  };
+  }, [user?.userId]);
 
-  const loadUserNotes = async () => {
-    if (!currentUser) return;
-
+const loadUserNotes = async (userId) => {
     try {
       const restOperation = get({
         apiName: 'noteApi',
-        path: `/notes/${currentUser}`
+        path: '/notes', 
+        options: {
+          queryParams: {
+            userId: userId
+          }
+        }
       });
-
       const { body } = await restOperation.response;
       const notes = await body.json();
-      setProcessedNotes(notes);
+      setProcessedNotes(notes || []);
+      console.log('✅ Loaded notes for user:', userId);
     } catch (error) {
-      console.error('Error loading notes:', error);
+      console.error('❌ Error loading notes:', error);
+      setProcessedNotes([]);
     }
   };
-  
-    useEffect(() => {
+
+  useEffect(() => {
     checkBackendHealth();
   }, []);
 
@@ -265,23 +123,7 @@ function NoteMapApp() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center ${
-        isDark ? 'bg-gray-900' : 'bg-gray-50'
-      }`}>
-        <div className="text-center">
-          <Brain size={48} className="text-purple-500 animate-pulse mx-auto mb-4" />
-          <div className="text-purple-500">Loading...</div>
-        </div>
-      </div>
-    );
-  }
 
-  // 🔥 SHOW LOGIN SCREEN IF NOT AUTHENTICATED
-  if (!user) {
-    return <LoginScreen onSignIn={signIn} isDark={isDark} />;
-  }
 
   // ... KEEP ALL YOUR EXISTING HELPER FUNCTIONS (cleanExtractedText, SUBJECTS, etc.)
   const cleanExtractedText = (text) => {
@@ -350,21 +192,21 @@ const getTopicColor = (topic) => {
   return colors[topic] || colors['Other'];
 };
 
-  const saveNoteToBackend = async (noteData) => {
-    if (!user) {
-      console.warn('⚠️ No user logged in - note saved locally only');
-      return;
-    }
+const saveNoteToBackend = async (noteData) => {
+  if (!user?.userId) {
+    console.warn('⚠️ No user logged in - note saved locally only');
+    return;
+  }
 
-    console.log('✅ Saving note for user:', user.email);
-    
-      try {
+  console.log('✅ Saving note for user:', user.userId);
+  
+  try {
     const restOperation = post({
       apiName: 'noteApi',
       path: '/notes',
       options: {
         body: {
-          userId: user.userId,
+          userId: user.userId, // 🔥 Use real Cognito user ID
           noteId: noteData.id,
           filename: noteData.filename,
           subject: noteData.subject,
@@ -381,6 +223,10 @@ const getTopicColor = (topic) => {
     const { body } = await restOperation.response;
     const response = await body.json();
     console.log('✅ Note saved to cloud:', response);
+    
+    // Reload notes after saving
+    await loadUserNotes(user.userId);
+    
     return response;
   } catch (error) {
     console.error('❌ Save to cloud failed:', error);
@@ -1659,12 +1505,13 @@ const renderDashboard = () => {
               {selectedSubject !== 'All Subjects' && ` in ${selectedSubject}`}
               {searchQuery && ' matching your search'}.
             </p>
-            {currentUser && (
-  <p className={`text-sm mt-1 flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-    <CheckCircle size={14} />
-    ✅ Synced to your account
-  </p>
-)}
+            {/* 🔥 UPDATED: Use 'user' instead of 'currentUser' */}
+            {user?.userId && (
+              <p className={`text-sm mt-1 flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                <CheckCircle size={14} />
+                ✅ Synced to your account
+              </p>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -1807,7 +1654,6 @@ const renderDashboard = () => {
                       {note.filename}
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {/* Display SUBJECT instead of filename */}
                       <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${getTopicColor(note.subject || 'Other')}`}>
                         {note.subject || 'General'}
                       </span>
@@ -1922,7 +1768,7 @@ const renderDashboard = () => {
                   </div>
                 )}
 
-                {/* Card Actions Footer - WITH FLASHCARD BUTTON */}
+                {/* Card Actions Footer */}
                 <div className="flex items-center gap-2 mt-auto pt-4 border-t border-dashed border-gray-200 dark:border-gray-700">
                   
                   {/* View Note Button */}
@@ -1938,7 +1784,7 @@ const renderDashboard = () => {
                     View Note
                   </button>
 
-                  {/* 🧠 FLASHCARD BUTTON - THE MISSING BRAIN ICON */}
+                  {/* Flashcard Button */}
                   <button
                     onClick={() => startFlashcards(note)}
                     className={`p-2.5 rounded-lg transition-all duration-300 ${
@@ -1951,7 +1797,7 @@ const renderDashboard = () => {
                     <Brain size={18} />
                   </button>
 
-                  {/* Download Dropdown with PDF, DOCX, TXT */}
+                  {/* Download Dropdown */}
                   <div className="relative group/dropdown">
                     <button className={`p-2.5 rounded-lg transition-colors ${
                       isDark 
@@ -1961,7 +1807,6 @@ const renderDashboard = () => {
                       <Download size={18} />
                     </button>
                     
-                    {/* Hover Dropdown Menu */}
                     <div className="absolute bottom-full right-0 mb-2 w-40 hidden group-hover/dropdown:block z-20">
                       <div className={`p-1 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
                         <button
@@ -2025,6 +1870,7 @@ const renderDashboard = () => {
     </div>
   );
 };
+
  const renderFlashcardModal = () => {
     if (!showFlashcardModal || !activeNoteForFlashcards) return null;
 
@@ -2416,36 +2262,36 @@ return (
               </div>
             </div>
 
-            {/* 🔥 USER INFO AND LOGOUT */}
-            <div className="flex items-center gap-3">
-              <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-lg ${
-                isDark ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-emerald-50 border border-emerald-200'
-              }`}>
-                <CheckCircle size={16} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
-                <span className={`text-sm font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  {user.email}
-                </span>
-              </div>
+{/* 🔥 USER INFO AND LOGOUT */}
+<div className="flex items-center gap-3">
+  <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-lg ${
+    isDark ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-emerald-50 border border-emerald-200'
+  }`}>
+    <CheckCircle size={16} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+    <span className={`text-sm font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+      {user.signInDetails?.loginId || user.username}
+    </span>
+  </div>
 
-              <button
-                onClick={() => setIsDark(!isDark)}
-                className={`p-3 rounded-lg transition ${isDark ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >
-                {isDark ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
+  <button
+    onClick={() => setIsDark(!isDark)}
+    className={`p-3 rounded-lg transition ${isDark ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+  >
+    {isDark ? <Sun size={20} /> : <Moon size={20} />}
+  </button>
 
-              <button
-                onClick={signOut}
-                className={`p-3 rounded-lg transition flex items-center gap-2 ${
-                  isDark 
-                    ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40 border border-red-500/30' 
-                    : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                }`}
-                title="Sign Out"
-              >
-                <LogOut size={20} />
-              </button>
-            </div>
+  <button
+    onClick={signOut}
+    className={`p-3 rounded-lg transition flex items-center gap-2 ${
+      isDark 
+        ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40 border border-red-500/30' 
+        : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+    }`}
+    title="Sign Out"
+  >
+    <LogOut size={20} />
+  </button>
+</div>
           </div>
         </div>
       </nav>
