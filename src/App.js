@@ -1,47 +1,297 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, Upload, LayoutDashboard, Sun, Moon, FileText, Search, Download, ChevronDown, ChevronRight, X, CheckCircle, Clock, AlertCircle, Eye, BookOpen, Tag, MapPin, Sparkles, Brain, Zap, ChevronLeft, Shuffle } from 'lucide-react';
+import { Home, Upload, LayoutDashboard, Sun, Moon, FileText, Search, Download, ChevronDown, ChevronRight, X, CheckCircle, Clock, AlertCircle, Eye, BookOpen, Tag, MapPin, Sparkles, Brain, Zap, ChevronLeft, Shuffle, LogOut } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as pdfjsLib from "pdfjs-dist";
+import { Amplify } from 'aws-amplify';
+import { Authenticator } from '@aws-amplify/ui-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
+import { post, get } from 'aws-amplify/api';
+import '@aws-amplify/ui-react/styles.css';
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
-export default function NoteMap() {
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: 'us-east-1_Ebc76UBJa',
+      userPoolClientId: '2r704fnnfa991bs0fjoj6v4am',
+      loginWith: {
+        oauth: {
+          domain: 'us-east-1ebc76ubja.auth.us-east-1.amazoncognito.com',
+          scopes: ['email', 'openid', 'profile'],
+          redirectSignIn: ['http://localhost:3000/'],
+          redirectSignOut: ['http://localhost:3000/'],
+          responseType: 'code'
+        }
+      }
+    }
+  },
+  API: {
+    REST: {
+      noteApi: {
+        endpoint: 'https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default',
+        region: 'us-east-1'
+      }
+    }
+  }
+});
+
+// 🔥 AUTHENTICATION HOOK - MUST BE OUTSIDE THE COMPONENT
+const useAuth = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('mockUser');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
+  }, []);
+
+  const signIn = async (email) => {
+    const mockUser = {
+      userId: `user-${Date.now()}`,
+      email: email,
+      name: email.split('@')[0]
+    };
+    localStorage.setItem('mockUser', JSON.stringify(mockUser));
+    setUser(mockUser);
+  };
+
+  const signOut = () => {
+    localStorage.removeItem('mockUser');
+    setUser(null);
+  };
+
+  return { user, loading, signIn, signOut };
+};
+
+// 🔥 LOGIN SCREEN COMPONENT - MUST BE OUTSIDE THE COMPONENT
+const LoginScreen = ({ onSignIn, isDark }) => {
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      onSignIn('demo.user@gmail.com');
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const handleEmailSignIn = () => {
+    if (!email) return;
+    setIsLoading(true);
+    setTimeout(() => {
+      onSignIn(email);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  return (
+    <div className={`min-h-screen flex items-center justify-center p-6 ${
+      isDark 
+        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
+        : 'bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50'
+    }`}>
+      <div className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-[120px] opacity-20 pointer-events-none ${
+        isDark ? 'bg-purple-600' : 'bg-purple-400'
+      }`}></div>
+      <div className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none ${
+        isDark ? 'bg-blue-600' : 'bg-blue-400'
+      }`}></div>
+
+      <div className={`relative max-w-md w-full p-8 rounded-3xl backdrop-blur-xl border shadow-2xl ${
+        isDark 
+          ? 'bg-gray-800/50 border-gray-700' 
+          : 'bg-white/80 border-white/20'
+      }`}>
+        <div className="text-center mb-8">
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
+            isDark ? 'bg-purple-600' : 'bg-purple-500'
+          }`}>
+            <Brain size={32} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">
+            Welcome to NoteMap
+          </h1>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            Sign in to organize your notes with AI
+          </p>
+        </div>
+
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={isLoading}
+          className={`w-full py-3.5 px-4 rounded-xl font-semibold flex items-center justify-center gap-3 mb-4 transition-all duration-300 ${
+            isDark 
+              ? 'bg-white text-gray-900 hover:bg-gray-100' 
+              : 'bg-white text-gray-900 hover:bg-gray-50 shadow-md hover:shadow-lg'
+          } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          {isLoading ? 'Signing in...' : 'Continue with Google'}
+        </button>
+
+        <div className="relative my-6">
+          <div className={`absolute inset-0 flex items-center ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+            <div className="w-full border-t border-current"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className={`px-4 ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600'}`}>
+              Or continue with email
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <input
+            type="email"
+            placeholder="your.email@gmail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && email && !isLoading) {
+                handleEmailSignIn();
+              }
+            }}
+            className={`w-full px-4 py-3.5 rounded-xl mb-4 outline-none transition-all border ${
+              isDark 
+                ? 'bg-gray-900/50 text-white border-gray-700 focus:border-purple-500' 
+                : 'bg-gray-50 text-gray-900 border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100'
+            }`}
+            disabled={isLoading}
+          />
+          <button
+            onClick={handleEmailSignIn}
+            disabled={isLoading || !email}
+            className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-300 ${
+              isLoading || !email
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 hover:scale-105'
+            } text-white shadow-lg shadow-purple-500/25`}
+          >
+            {isLoading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </div>
+
+        <p className={`text-xs text-center mt-6 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+          By signing in, you agree to our Terms of Service and Privacy Policy
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// 🔥 MAIN APP COMPONENT
+function NoteMapApp() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isDark, setIsDark] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState('All Subjects');
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [dragActive, setDragActive] = useState(false)
+  const [dragActive, setDragActive] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [processedNotes, setProcessedNotes] = useState([]);
-  const [apiEndpoint, setApiEndpoint] = useState('https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default/NoteMap-AI-Processor');
+  const [apiEndpoint] = useState('https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default/NoteMap-AI-Processor');
   const [backendInfo, setBackendInfo] = useState(null);
   const [expandedTOC, setExpandedTOC] = useState({});
-  const [selectedFormat, setSelectedFormat] = useState('pdf');
   const [downloadStatus, setDownloadStatus] = useState({});
-  const [tocSearchQuery, setTocSearchQuery] = useState('');
-  const [selectedTOCEntry, setSelectedTOCEntry] = useState(null);
-  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [showFlashcardModal, setShowFlashcardModal] = useState(false);
+  const [activeNoteForFlashcards, setActiveNoteForFlashcards] = useState(null);
   const [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0);
-  const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
-  const [flashcards, setFlashcards] = useState([]);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [pdfPreviewUrl, setPDFPreviewUrl] = useState(null);
   const [showViewDashboardButton, setShowViewDashboardButton] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [flashcards, setFlashcards] = useState([]);
+  const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  
   const fileInputRef = useRef(null);
- const [showFlashcardModal, setShowFlashcardModal] = useState(false);
-const [activeNoteForFlashcards, setActiveNoteForFlashcards] = useState(null);
-const [isFlipped, setIsFlipped] = useState(false);
-const [loading, setLoading] = useState(false);
 
+   useEffect(() => {
+    loadUserSession();
+    loadUserNotes();
+  }, []);
+
+  const loadUserSession = async () => {
+    try {
+      const session = await fetchAuthSession();
+      setCurrentUser(session.userSub); // This is the unique user ID
+    } catch (error) {
+      console.error('Error loading session:', error);
+    }
+  };
+
+  const loadUserNotes = async () => {
+    if (!currentUser) return;
+
+    try {
+      const restOperation = get({
+        apiName: 'noteApi',
+        path: `/notes/${currentUser}`
+      });
+
+      const { body } = await restOperation.response;
+      const notes = await body.json();
+      setProcessedNotes(notes);
+    } catch (error) {
+      console.error('Error loading notes:', error);
+    }
+  };
+  
+    useEffect(() => {
+    checkBackendHealth();
+  }, []);
+
+  const checkBackendHealth = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/health');
+      const data = await res.json();
+      setBackendInfo(data);
+    } catch (err) {
+      console.error('Backend not available:', err);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDark ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
+        <div className="text-center">
+          <Brain size={48} className="text-purple-500 animate-pulse mx-auto mb-4" />
+          <div className="text-purple-500">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔥 SHOW LOGIN SCREEN IF NOT AUTHENTICATED
+  if (!user) {
+    return <LoginScreen onSignIn={signIn} isDark={isDark} />;
+  }
+
+  // ... KEEP ALL YOUR EXISTING HELPER FUNCTIONS (cleanExtractedText, SUBJECTS, etc.)
   const cleanExtractedText = (text) => {
     if (!text) return '';
     return text
-      .replace(/ð·/g, '•')
-      .replace(/â€¢/g, '•')
-      .replace(/â€œ|â€/g, '"')
-      .replace(/â€˜|â€™/g, "'")
-      .replace(/â€"|â€"/g, '-')
+      .replace(/Ã°Â·/g, '•')
+      .replace(/Ã¢â‚¬Â¢/g, '•')
+      .replace(/Ã¢â‚¬Å"|Ã¢â‚¬/g, '"')
+      .replace(/Ã¢â‚¬Ëœ|Ã¢â‚¬â„¢/g, "'")
+      .replace(/Ã¢â‚¬"|Ã¢â‚¬"/g, '-')
       .replace(/([A-Za-z])\s+(?=[A-Za-z])/g, '$1')
       .replace(/\s+/g, ' ')
       .trim();
@@ -66,19 +316,77 @@ const [loading, setLoading] = useState(false);
     'Other'
   ];
 
-  useEffect(() => {
-    checkBackendHealth();
-  }, []);
-
-  const checkBackendHealth = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/health');
-      const data = await res.json();
-      setBackendInfo(data);
-    } catch (err) {
-      console.error('Backend not available:', err);
-    }
+  const getSubjectHexColor = (subject) => {
+  const colors = {
+    'Mathematics': '#6366f1',
+    'Physics': '#3b82f6',
+    'Chemistry': '#10b981',
+    'Biology': '#059669',
+    'Computer Science': '#8b5cf6',
+    'Data Science & Artificial Intelligence': '#a855f7',
+    'Engineering (General)': '#f59e0b',
+    'Environmental Science': '#22c55e',
+    'Economics': '#eab308',
+    'Psychology': '#ec4899',
+    'Sociology': '#fb923c',
+    'Political Science': '#ef4444',
+    'History': '#a16207',
+    'Literature & Languages': '#0ea5e9',
+    'Business & Management': '#14b8a6',
+    'Other': '#6b7280'
   };
+  return colors[subject] || colors['Other'];
+};
+
+const getTopicColor = (topic) => {
+  const colors = {
+    'Mathematics': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+    'Physics': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    'Chemistry': 'bg-green-500/10 text-green-400 border-green-500/30',
+    'Biology': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    'Computer Science': 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    'Other': 'bg-gray-500/10 text-gray-400 border-gray-500/30'
+  };
+  return colors[topic] || colors['Other'];
+};
+
+  const saveNoteToBackend = async (noteData) => {
+    if (!user) {
+      console.warn('⚠️ No user logged in - note saved locally only');
+      return;
+    }
+
+    console.log('✅ Saving note for user:', user.email);
+    
+      try {
+    const restOperation = post({
+      apiName: 'noteApi',
+      path: '/notes',
+      options: {
+        body: {
+          userId: user.userId,
+          noteId: noteData.id,
+          filename: noteData.filename,
+          subject: noteData.subject,
+          date: noteData.date,
+          content: noteData.extractedText,
+          sections: noteData.sections,
+          concepts: noteData.concepts,
+          flashcards: noteData.flashcards,
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+
+    const { body } = await restOperation.response;
+    const response = await body.json();
+    console.log('✅ Note saved to cloud:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Save to cloud failed:', error);
+  }
+};
+
 
 const handleFileUpload = async (files) => {
   // 1. Validation Logic
@@ -203,6 +511,8 @@ const handleFileUpload = async (files) => {
           processedNote.flashcards = generateFlashcards(processedNote);
           
           // 5. Update All States
+          // 🔥 Save to cloud with user authentication
+          await saveNoteToBackend(processedNote);
           setProcessedNotes(prev => [...prev, processedNote]);
           setFlashcards(prev => [{
             id: processedNote.id,
@@ -713,17 +1023,7 @@ const extractTextFromFile = async (file) => {
     return html;
   };
 
-  const getSubjectHexColor = (subject) => {
-    const colors = {
-      'Mathematics': '#6366f1',
-      'Physics': '#3b82f6',
-      'Chemistry': '#10b981',
-      'Biology': '#059669',
-      'Computer Science': '#8b5cf6',
-      'Other': '#6b7280'
-    };
-    return colors[subject] || colors['Other'];
-  };
+
 
   const getSubjectRGBColor = (subject) => {
     const colors = {
@@ -747,17 +1047,6 @@ const extractTextFromFile = async (file) => {
     return colors[subject] || colors['Other'];
   };
 
-  const getTopicColor = (topic) => {
-    const colors = {
-      'Mathematics': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
-      'Physics': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-      'Chemistry': 'bg-green-500/10 text-green-400 border-green-500/30',
-      'Biology': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      'Computer Science': 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-      'Other': 'bg-gray-500/10 text-gray-400 border-gray-500/30'
-    };
-    return colors[topic] || colors['Other'];
-  };
 
 const generateFlashcards = (note) => {
   const cards = [];
@@ -1370,6 +1659,12 @@ const renderDashboard = () => {
               {selectedSubject !== 'All Subjects' && ` in ${selectedSubject}`}
               {searchQuery && ' matching your search'}.
             </p>
+            {currentUser && (
+  <p className={`text-sm mt-1 flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+    <CheckCircle size={14} />
+    ✅ Synced to your account
+  </p>
+)}
           </div>
 
           {/* Action Buttons */}
@@ -2068,16 +2363,16 @@ const renderPreviewModal = () => {
   );
 };
 
- return (
-      <div className={`min-h-screen transition-colors duration-300 ${isDark 
-  ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
-  : 'bg-[#f8fafc]' 
-}`}>
+return (
+    <div className={`min-h-screen transition-colors duration-300 ${isDark 
+      ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
+      : 'bg-[#f8fafc]' 
+    }`}>
       <nav className={`sticky top-0 z-40 backdrop-blur-md transition-all duration-300 ${
-  isDark 
-    ? 'bg-gray-900/80 border-b border-gray-800' 
-    : 'bg-[#f1f5f9]/80 border-b border-slate-200' 
-}`}>
+        isDark 
+          ? 'bg-gray-900/80 border-b border-gray-800' 
+          : 'bg-[#f1f5f9]/80 border-b border-slate-200' 
+      }`}>
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-8">
@@ -2091,12 +2386,8 @@ const renderPreviewModal = () => {
                 <button
                   onClick={() => setCurrentPage('home')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'home'
-                      ? isDark
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-purple-600 text-white'
-                      : isDark
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-purple-600 text-white'
+                      : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <Home size={18} />
@@ -2105,12 +2396,8 @@ const renderPreviewModal = () => {
                 <button
                   onClick={() => setCurrentPage('upload')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'upload'
-                      ? isDark
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-purple-600 text-white'
-                      : isDark
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-purple-600 text-white'
+                      : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <Upload size={18} />
@@ -2119,12 +2406,8 @@ const renderPreviewModal = () => {
                 <button
                   onClick={() => setCurrentPage('dashboard')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'dashboard'
-                      ? isDark
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-purple-600 text-white'
-                      : isDark
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'bg-purple-600 text-white'
+                      : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <LayoutDashboard size={18} />
@@ -2133,12 +2416,36 @@ const renderPreviewModal = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsDark(!isDark)}
-              className={`p-3 rounded-lg transition ${isDark ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
+            {/* 🔥 USER INFO AND LOGOUT */}
+            <div className="flex items-center gap-3">
+              <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-lg ${
+                isDark ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-emerald-50 border border-emerald-200'
+              }`}>
+                <CheckCircle size={16} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                <span className={`text-sm font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                  {user.email}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setIsDark(!isDark)}
+                className={`p-3 rounded-lg transition ${isDark ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+
+              <button
+                onClick={signOut}
+                className={`p-3 rounded-lg transition flex items-center gap-2 ${
+                  isDark 
+                    ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40 border border-red-500/30' 
+                    : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                }`}
+                title="Sign Out"
+              >
+                <LogOut size={20} />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -2178,3 +2485,5 @@ const renderPreviewModal = () => {
     </div>
   );
 }
+
+export default NoteMapApp;
