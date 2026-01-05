@@ -9,6 +9,16 @@ import { post, get } from 'aws-amplify/api';
 import '@aws-amplify/ui-react/styles.css';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+
+const isLocalhost = Boolean(
+  window.location.hostname === 'localhost' ||
+    window.location.hostname === '[::1]' ||
+    window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
+);
+
+const localRedirect = 'http://localhost:3000';
+const productionRedirect = 'https://main.d2k7e0dnee9zrc.amplifyapp.com'; 
+
 Amplify.configure({
   Auth: {
     Cognito: {
@@ -18,8 +28,9 @@ Amplify.configure({
         oauth: {
           domain: 'us-east-1ebc76ubja.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
-          redirectSignIn: ['http://localhost:3000'],
-          redirectSignOut: ['http://localhost:3000'],
+          // This line picks the right URL automatically
+          redirectSignIn: [isLocalhost ? localRedirect : productionRedirect],
+          redirectSignOut: [isLocalhost ? localRedirect : productionRedirect],
           responseType: 'code'
         }
       }
@@ -34,9 +45,6 @@ Amplify.configure({
     }
   }
 });
-
-
-// 🔥 REPLACE THE ENTIRE NoteMapApp FUNCTION WITH THIS:
 
 function NoteMapApp() {
   return (
