@@ -13,13 +13,13 @@ Amplify.configure({
   Auth: {
     Cognito: {
       userPoolId: 'us-east-1_Ebc76UBJa',
-      userPoolClientId: '2r704fnnfa991bs0fjoj6v4am',
+      userPoolClientId: 'gbtpkk1afu7m0o0gfmgcrct56',
       loginWith: {
         oauth: {
           domain: 'us-east-1ebc76ubja.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
-          redirectSignIn: ['http://localhost:3000/'],
-          redirectSignOut: ['http://localhost:3000/'],
+          redirectSignIn: ['http://localhost:3000'],
+          redirectSignOut: ['http://localhost:3000'],
           responseType: 'code'
         }
       }
