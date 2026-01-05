@@ -26,9 +26,9 @@ Amplify.configure({
       userPoolClientId: '71nveuodk714vt3lk781fli9oq',
       loginWith: {
         oauth: {
-          domain: 'us-east-1ebc76ubja.auth.us-east-1.amazoncognito.com',
+          // FIXED DOMAIN NAME BELOW:
+          domain: 'us-east-1pgcm2kvt8.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
-          // This line picks the right URL automatically
           redirectSignIn: [isLocalhost ? localRedirect : productionRedirect],
           redirectSignOut: [isLocalhost ? localRedirect : productionRedirect],
           responseType: 'code'
