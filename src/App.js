@@ -12,8 +12,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 Amplify.configure({
   Auth: {
     Cognito: {
-      userPoolId: 'us-east-1_Ebc76UBJa',
-      userPoolClientId: 'gbtpkk1afu7m0o0gfmgcrct56',
+      userPoolId: 'us-east-1_pGcM2KVt8',
+      userPoolClientId: '71nveuodk714vt3lk781fli9oq',
       loginWith: {
         oauth: {
           domain: 'us-east-1ebc76ubja.auth.us-east-1.amazoncognito.com',
