@@ -7,7 +7,7 @@ import { Authenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { post, get } from 'aws-amplify/api';
 import '@aws-amplify/ui-react/styles.css';
-
+import { uploadData } from 'aws-amplify/storage';
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 const isLocalhost = Boolean(
@@ -26,7 +26,6 @@ Amplify.configure({
       userPoolClientId: '71nveuodk714vt3lk781fli9oq',
       loginWith: {
         oauth: {
-          // FIXED DOMAIN NAME BELOW:
           domain: 'us-east-1pgcm2kvt8.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
           redirectSignIn: [isLocalhost ? localRedirect : productionRedirect],
@@ -42,6 +41,12 @@ Amplify.configure({
         endpoint: 'https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default',
         region: 'us-east-1'
       }
+    }
+  },
+    Storage: {
+    S3: {
+      bucket: 'notemap-storage-rrt-786', 
+      region: 'us-east-1'
     }
   }
 });
@@ -96,26 +101,43 @@ function NoteMapAppContent({ signOut, user }) {
     }
   }, [user?.userId]);
 
+
 const loadUserNotes = async (userId) => {
-    try {
-      const restOperation = get({
-        apiName: 'noteApi',
-        path: '/notes', 
-        options: {
-          queryParams: {
-            userId: userId
-          }
-        }
-      });
-      const { body } = await restOperation.response;
-      const notes = await body.json();
-      setProcessedNotes(notes || []);
-      console.log('✅ Loaded notes for user:', userId);
-    } catch (error) {
-      console.error('❌ Error loading notes:', error);
+  try {
+    // 🔥 GET THE AUTHENTICATION TOKEN
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+
+    // 🔥 CHECK IF TOKEN EXISTS
+    if (!token) {
+      console.error('❌ No authentication token available');
       setProcessedNotes([]);
+      return;
     }
-  };
+
+    const restOperation = get({
+      apiName: 'noteApi',
+      path: '/notes', 
+      options: {
+        headers: {
+          Authorization: `Bearer ${token}` // 🔥 ADD AUTHORIZATION HEADER
+        },
+        queryParams: {
+          userId: userId
+        }
+      }
+    });
+    
+    const { body } = await restOperation.response;
+    const notes = await body.json();
+    setProcessedNotes(notes || []);
+    console.log('✅ Loaded notes for user:', userId);
+    
+  } catch (error) {
+    console.error('❌ Error loading notes:', error);
+    setProcessedNotes([]);
+  }
+};
 
   useEffect(() => {
     checkBackendHealth();
@@ -206,23 +228,30 @@ const saveNoteToBackend = async (noteData) => {
     return;
   }
 
-  console.log('✅ Saving note for user:', user.userId);
+  console.log('🚀 Initiating cloud save for user:', user.userId);
   
   try {
+    const session = await fetchAuthSession();
+    const token = session.tokens.idToken.toString(); 
+
     const restOperation = post({
       apiName: 'noteApi',
       path: '/notes',
       options: {
+        headers: {
+          Authorization: `Bearer ${token}`, // 🔥 Sends proof of identity to AWS
+          'Content-Type': 'application/json'
+        },
         body: {
-          userId: user.userId, // 🔥 Use real Cognito user ID
+          userId: user.userId,
           noteId: noteData.id,
-          filename: noteData.filename,
-          subject: noteData.subject,
-          date: noteData.date,
-          content: noteData.extractedText,
-          sections: noteData.sections,
-          concepts: noteData.concepts,
-          flashcards: noteData.flashcards,
+          filename: noteData.filename || 'Untitled Note',
+          subject: noteData.subject || 'General',
+          date: noteData.date || new Date().toLocaleDateString(),
+          content: noteData.extractedText || noteData.content || '',
+          sections: noteData.sections || [],
+          concepts: noteData.concepts || [],
+          flashcards: noteData.flashcards || [],
           timestamp: new Date().toISOString()
         }
       }
@@ -230,14 +259,17 @@ const saveNoteToBackend = async (noteData) => {
 
     const { body } = await restOperation.response;
     const response = await body.json();
-    console.log('✅ Note saved to cloud:', response);
     
-    // Reload notes after saving
-    await loadUserNotes(user.userId);
+    console.log('✅ Success! Note stored in DynamoDB:', response);
+    
+     loadUserNotes(user.userId);
     
     return response;
+
   } catch (error) {
-    console.error('❌ Save to cloud failed:', error);
+    console.error('❌ Cloud save failed. Check Lambda logs in CloudWatch.');
+    console.error('Error details:', error);
+    throw error; 
   }
 };
 
@@ -278,6 +310,33 @@ const handleFileUpload = async (files) => {
       return; 
     }
 
+    // 🔥 DEFINE S3 KEY OUTSIDE TRY BLOCK (FIX FOR SCOPE ERROR)
+    const s3Key = `users/${user.userId}/notes/${Date.now()}_${file.name}`;
+
+    // 🔥 UPLOAD TO S3 FIRST
+    try {
+      console.log(`📤 Uploading ${file.name} to S3...`);
+      
+      const uploadResult = await uploadData({
+        key: s3Key,
+        data: file,
+        options: {
+          contentType: file.type,
+          metadata: {
+            userId: user.userId,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      }).result;
+      
+      console.log('✅ S3 upload successful:', uploadResult);
+      
+    } catch (s3Error) {
+      console.error('❌ S3 upload failed:', s3Error);
+      alert(`Failed to upload ${file.name} to cloud storage: ${s3Error.message}`);
+      return; // Skip this file if S3 upload fails
+    }
+
     // 3. Process each file
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -292,7 +351,8 @@ const handleFileUpload = async (files) => {
           status: 'processing',
           progress: 0,
           previewUrl: e.target.result,
-          file: file
+          file: file,
+          s3Key: s3Key // 🔥 NOW THIS WORKS - s3Key is in scope
         };
 
         setUploadedFiles(prev => [...prev, newFile]);
@@ -321,43 +381,24 @@ const handleFileUpload = async (files) => {
             throw new Error(result?.error || 'Processing failed');
           }
 
-          // 4. Map Data - UPDATED TO MATCH NEW LAMBDA STRUCTURE
+          // 4. Map Data - UPDATED TO INCLUDE S3 KEY
           const processedNote = {
             id: result.id || fileId,
             filename: file?.name || 'Untitled_Document',
-            
-            // NEW: Subject from Lambda
+            s3Key: s3Key, // 🔥 Store S3 reference in DynamoDB
             subject: result.subject || 'General Study',
-            
-            // Date
             date: result.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            
-            // Statistics
             charCount: result.charCount || 0,
             wordCount: result.wordCount || 0,
-            
-            // Text Content
             extractedText: result.text || '',
             preview: (result.text || '').substring(0, 150) + '...',
-            
-            // NEW: Sections array with {title, desc} structure
             sections: result.sections || [],
-            
-            // NEW: Concepts array
             concepts: result.concepts || [],
-            
-            // Flashcards (generated from sections and concepts)
             flashcards: [],
-            
-            // UI Display
             totalSections: (result.sections || []).length,
-            
-            // Organized notes for display (using NEW structure)
             organizedNotes: result.sections && result.sections.length > 0 
               ? result.sections.map(s => `### ${s.title}\n${s.desc}`).join('\n\n')
               : result.text || "Processing complete...", 
-              
-            // Metadata
             timestamp: new Date().toLocaleTimeString()
           };
 
@@ -402,12 +443,7 @@ const handleFileUpload = async (files) => {
   await Promise.all(processingPromises);
   setIsProcessing(false);
   setLoading(false);
-};
-
-
-// App.js (React)
-
-const extractTextFromFile = async (file) => {
+};const extractTextFromFile = async (file) => {
   const awsEndpoint = "https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default/NoteMap-AI-Processor";
   const imagesToProcess = [];
 
