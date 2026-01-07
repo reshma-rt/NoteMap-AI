@@ -469,7 +469,7 @@ const extractTextFromFile = async (file) => {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       // Reduce scale slightly to 1.2 to keep payload under the 10MB API Gateway limit
-      const viewport = page.getViewport({ scale: 1.2 }); 
+      const viewport = page.getViewport({ scale: 1.6 }); 
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       canvas.width = viewport.width;
@@ -498,7 +498,7 @@ const extractTextFromFile = async (file) => {
   let totalChars = 0;
   let detectedSubject = "Other";
 
-  for (let i = 0; i < imagesToProcess.size; i++) {
+  for (let i = 0; i < imagesToProcess.length; i++) {
     const imgB64 = imagesToProcess[i];
     
     try {
