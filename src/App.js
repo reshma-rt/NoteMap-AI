@@ -410,7 +410,7 @@ const handleFileUpload = async (files) => {
           
           // 5. Update All States
           // 🔥 Save to cloud with user authentication
-          await saveNoteToBackend(processedNote);
+          // await saveNoteToBackend(processedNote);
           setProcessedNotes(prev => [...prev, processedNote]);
           setFlashcards(prev => [{
             id: processedNote.id,
@@ -446,107 +446,125 @@ const handleFileUpload = async (files) => {
   await Promise.all(processingPromises);
   setIsProcessing(false);
   setLoading(false);
-};const extractTextFromFile = async (file) => {
+};
+
+const extractTextFromFile = async (file) => {
+  // Use the Invoke URL from your API Gateway Stage
   const awsEndpoint = "https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default/NoteMap-AI-Processor";
   const imagesToProcess = [];
 
-  // 1. Convert PDF or Image into Base64 strings for the AWS Lambda
+  // Get the current user ID for the Lambda to link the note
+  const session = await fetchAuthSession();
+  const userId = session.userSub || session.tokens?.idToken?.payload?.sub;
+
+  if (!userId) {
+    throw new Error("User session not found. Please log in again.");
+  }
+
+  // 1. Convert PDF or Image into Base64 strings
   if (file.type === "application/pdf") {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 1.5 });
+      // Reduce scale slightly to 1.2 to keep payload under the 10MB API Gateway limit
+      const viewport = page.getViewport({ scale: 1.2 }); 
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
       await page.render({ canvasContext: context, viewport }).promise;
+      // Split and take index 1 to remove the "data:image/jpeg;base64," prefix
       imagesToProcess.push(canvas.toDataURL("image/jpeg", 0.7).split(",")[1]);
     }
   } else {
-    const base64 = await new Promise((resolve) => {
+    const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = (e) => reject(e);
       reader.readAsDataURL(file);
     });
     imagesToProcess.push(base64);
   }
 
-  // 2. Process all pages/images through AWS and collect the full results
+  // 2. Process all pages sequentially through AWS
   const allText = [];
   const allSections = [];
   const allConcepts = [];
+  const allFlashcards = []; // Added to capture flashcards from Lambda
   let totalWords = 0;
   let totalChars = 0;
   let detectedSubject = "Other";
 
-  for (const imgB64 of imagesToProcess) {
+  for (let i = 0; i < imagesToProcess.size; i++) {
+    const imgB64 = imagesToProcess[i];
+    
     try {
+      console.log(`Processing page ${i + 1} of ${imagesToProcess.length}...`);
+      
       const res = await fetch(awsEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imgB64 }),
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          image: imgB64,
+          userId: user.userId,
+          filename: file.name
+        }),
+        priority: 'high'
       });
 
-      if (!res.ok) throw new Error(`AWS error ${res.status}`);
+      if (!res.ok) {
+        const errorDetail = await res.text();
+        throw new Error(`AWS error ${res.status}: ${errorDetail}`);
+      }
 
       const data = await res.json();
 
-      // NEW LAMBDA STRUCTURE: data now has sections with {title, desc}
-      if (data.text) {
-        allText.push(data.text);
-        totalChars += data.charCount || data.text.length;
-        totalWords += data.wordCount || data.text.split(/\s+/).length;
+      // Accumulate text
+      if (data.extractedText || data.text) {
+        const textContent = data.extractedText || data.text;
+        allText.push(textContent);
+        totalChars += textContent.length;
+        totalWords += textContent.split(/\s+/).length;
       }
       
-      // Capture sections array directly from Lambda
-      if (data.sections && Array.isArray(data.sections)) {
-        allSections.push(...data.sections);
-      }
+      // Merge arrays from this page's processing
+      if (data.sections) allSections.push(...data.sections);
+      if (data.concepts) allConcepts.push(...data.concepts);
+      if (data.flashcards) allFlashcards.push(...data.flashcards);
       
-      // Capture concepts array
-      if (data.concepts && Array.isArray(data.concepts)) {
-        allConcepts.push(...data.concepts);
-      }
-      
-      // Update subject if detected
-      if (data.subject && data.subject !== "General") {
+      // Use the first detected subject as the primary one
+      if (data.subject && data.subject !== "Uncategorized" && detectedSubject === "Other") {
         detectedSubject = data.subject;
       }
 
     } catch (err) {
-      console.error("Error processing page through AWS:", err);
+      console.error(`Error on page ${i + 1}:`, err);
+      // If a single page fails, we continue to the next one instead of crashing the whole process
     }
   }
 
-  // 3. Return the complete object matching the new Lambda structure
+  if (allText.length === 0) {
+    throw new Error("The AI was unable to extract any text from this file.");
+  }
+
   return {
     success: true,
-    text: allText.join("\n\n"),
-    
-    // Sections with title and desc (not content/details)
-    sections: allSections.length > 0 ? allSections : [
-      { 
-        title: "Note Summary", 
-        desc: allText.join(" ").substring(0, 500) + "..." 
-      }
-    ],
-    
-    // Clean up duplicate concepts
-    concepts: [...new Set(allConcepts)],
-    
-    // Subject classification
+    id: Math.random().toString(36).substr(2, 9),
     subject: detectedSubject,
-    
-    // Statistics
+    text: allText.join("\n\n"),
+    sections: allSections.length > 0 ? allSections : [
+      { title: "Summary", desc: "Combined notes from uploaded document." }
+    ],
+    concepts: [...new Set(allConcepts)], // Deduplicate
+    flashcards: allFlashcards,
     wordCount: totalWords,
     charCount: totalChars,
-    
-    // Date
-    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   };
 };
 
