@@ -106,6 +106,10 @@ function NoteMapAppContent({ signOut, user }) {
 const loadUserNotes = async (userId) => {
   try {
     const session = await fetchAuthSession();
+if (!session.tokens || !session.tokens.idToken) {
+  console.error("No valid session tokens found. Please sign in again.");
+  return;
+}
     const token = session.tokens?.idToken?.toString();
 
     if (!token) {
