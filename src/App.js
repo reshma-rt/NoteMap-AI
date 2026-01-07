@@ -24,6 +24,7 @@ Amplify.configure({
     Cognito: {
       userPoolId: 'us-east-1_pGcM2KVt8',
       userPoolClientId: '71nveuodk714vt3lk781fli9oq',
+      identityPoolId: 'us-east-1:b26edfff-e2eb-4210-94d1-8c469f83ad0f',
       loginWith: {
         oauth: {
           domain: 'us-east-1pgcm2kvt8.auth.us-east-1.amazoncognito.com',
@@ -104,11 +105,9 @@ function NoteMapAppContent({ signOut, user }) {
 
 const loadUserNotes = async (userId) => {
   try {
-    // 🔥 GET THE AUTHENTICATION TOKEN
     const session = await fetchAuthSession();
     const token = session.tokens?.idToken?.toString();
 
-    // 🔥 CHECK IF TOKEN EXISTS
     if (!token) {
       console.error('❌ No authentication token available');
       setProcessedNotes([]);
@@ -120,7 +119,7 @@ const loadUserNotes = async (userId) => {
       path: '/notes', 
       options: {
         headers: {
-          Authorization: `Bearer ${token}` // 🔥 ADD AUTHORIZATION HEADER
+          Authorization: `Bearer ${token}`
         },
         queryParams: {
           userId: userId
