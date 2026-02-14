@@ -1,4 +1,3 @@
-import Tesseract from 'tesseract.js';
 import React, { useState, useRef, useEffect } from 'react';
 import { Home, Upload, LayoutDashboard, Sun, Moon, FileText, Search, Download, ChevronDown, ChevronRight, X, CheckCircle, Clock, AlertCircle, Eye, BookOpen, Tag, MapPin, Sparkles, Brain, Zap, ChevronLeft, Shuffle, LogOut } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -450,64 +449,123 @@ const handleFileUpload = async (files) => {
 };
 
 const extractTextFromFile = async (file) => {
+  // Use the Invoke URL from your API Gateway Stage
+  const awsEndpoint = "https://j84ctsm6jj.execute-api.us-east-1.amazonaws.com/default/NoteMap-AI-Processor";
   const imagesToProcess = [];
-  let allText = "";
 
-  try {
-    // 1. Convert PDF or Image into Base64 (Your existing logic remains)
-    if (file.type === "application/pdf") {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  // Get the current user ID for the Lambda to link the note
+  const session = await fetchAuthSession();
+  const userId = session.userSub || session.tokens?.idToken?.payload?.sub;
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: context, viewport }).promise;
-        imagesToProcess.push(canvas.toDataURL("image/jpeg"));
-      }
-    } else {
-      const base64 = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
-      imagesToProcess.push(base64);
-    }
-
-    // 2. PROCESS LOCALLY WITH TESSERACT (Replacing AWS)
-    for (const img of imagesToProcess) {
-      const result = await Tesseract.recognize(img, 'eng');
-      allText += result.data.text + "\n\n";
-    }
-
-    // 3. Return the structure your app expects
-    // Since Tesseract only gives raw text, we create a simple summary section manually
-    const wordCount = allText.trim().split(/\s+/).length;
-    
-    return {
-      success: true,
-      text: allText,
-      sections: [
-        { 
-          title: "Extracted Content", 
-          desc: allText.length > 500 ? allText.substring(0, 500) + "..." : allText 
-        }
-      ],
-      concepts: [], // Local OCR cannot detect concepts automatically
-      subject: "General", 
-      wordCount: wordCount,
-      charCount: allText.length,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    };
-
-  } catch (err) {
-    console.error("Local OCR Error:", err);
-    throw new Error("Failed to extract text locally.");
+  if (!userId) {
+    throw new Error("User session not found. Please log in again.");
   }
+
+  // 1. Convert PDF or Image into Base64 strings
+  if (file.type === "application/pdf") {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      // Reduce scale slightly to 1.2 to keep payload under the 10MB API Gateway limit
+      const viewport = page.getViewport({ scale: 1.6 }); 
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: context, viewport }).promise;
+      // Split and take index 1 to remove the "data:image/jpeg;base64," prefix
+      imagesToProcess.push(canvas.toDataURL("image/jpeg", 0.7).split(",")[1]);
+    }
+  } else {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
+    imagesToProcess.push(base64);
+  }
+
+  // 2. Process all pages sequentially through AWS
+  const allText = [];
+  const allSections = [];
+  const allConcepts = [];
+  const allFlashcards = []; // Added to capture flashcards from Lambda
+  let totalWords = 0;
+  let totalChars = 0;
+  let detectedSubject = "Other";
+
+  for (let i = 0; i < imagesToProcess.length; i++) {
+    const imgB64 = imagesToProcess[i];
+    
+    try {
+      console.log(`Processing page ${i + 1} of ${imagesToProcess.length}...`);
+      
+      const res = await fetch(awsEndpoint, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          image: imgB64,
+          userId: user.userId,
+          filename: file.name
+        }),
+        priority: 'high'
+      });
+
+      if (!res.ok) {
+        const errorDetail = await res.text();
+        throw new Error(`AWS error ${res.status}: ${errorDetail}`);
+      }
+
+      const data = await res.json();
+
+      // Accumulate text
+      if (data.extractedText || data.text) {
+        const textContent = data.extractedText || data.text;
+        allText.push(textContent);
+        totalChars += textContent.length;
+        totalWords += textContent.split(/\s+/).length;
+      }
+      
+      // Merge arrays from this page's processing
+      if (data.sections) allSections.push(...data.sections);
+      if (data.concepts) allConcepts.push(...data.concepts);
+      if (data.flashcards) allFlashcards.push(...data.flashcards);
+      
+      // Use the first detected subject as the primary one
+      if (data.subject && data.subject !== "Uncategorized" && detectedSubject === "Other") {
+        detectedSubject = data.subject;
+      }
+
+    } catch (err) {
+      console.error(`Error on page ${i + 1}:`, err);
+      // If a single page fails, we continue to the next one instead of crashing the whole process
+    }
+  }
+
+  if (allText.length === 0) {
+    throw new Error("The AI was unable to extract any text from this file.");
+  }
+
+  return {
+    success: true,
+    id: Math.random().toString(36).substr(2, 9),
+    subject: detectedSubject,
+    text: allText.join("\n\n"),
+    sections: allSections.length > 0 ? allSections : [
+      { title: "Summary", desc: "Combined notes from uploaded document." }
+    ],
+    concepts: [...new Set(allConcepts)], // Deduplicate
+    flashcards: allFlashcards,
+    wordCount: totalWords,
+    charCount: totalChars,
+    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  };
 };
 
   const handlePreview = (file) => {
