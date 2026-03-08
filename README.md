@@ -17,19 +17,19 @@ Secure Cloud Storage: Integration with AWS Cognito for authentication and S3 for
 📸 Project Walkthrough
 Home Page
 The gateway to NoteMap, highlighting the tool's core value proposition and seamless login experience.
-[Insert Home Page Screenshot Here]
+![Home Page](./Assets/Home%20Page.jpeg)
 
 Upload Page
 Supports drag-and-drop for PDFs and images. Features real-time status updates and pre-processing visualization.
-[Insert Upload Page Screenshot Here]
+![Upload Page](./Assets/Upload%20Page.jpeg)
 
 Dashboard Page
 A centralized hub for all processed notes, categorized by subject with a hierarchical table of contents (TOC).
-[Insert Dashboard Page Screenshot Here]
+![Dashboard Page](./Assets/Dashboard%20Page.jpeg)
 
 Interactive Flashcards
 Engage with AI-generated flashcards to test your knowledge directly within the app.
-[Insert Flashcards Screenshot Here]
+![Flashcards](./Assets/FlashCard.jpeg)
 
 🛠️ Tech Stack
 Frontend
