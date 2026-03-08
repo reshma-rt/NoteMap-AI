@@ -1,1 +1,61 @@
-<p align="center">🗺️ NoteMap — AI-Powered Study Tool</p><p align="center"><img src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white" /><img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" /><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" /><img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" /></p><p align="center"><strong>NoteMap</strong> is a serverless, AI-driven platform that transforms raw study materials into structured academic assets. By leveraging <strong>Amazon Bedrock</strong> and advanced <strong>OCR pipelines</strong>, NoteMap automates the creation of organized notes and interactive flashcards.</p>⚡ Key Features🤖 Intelligent OCR Processing: A hybrid strategy using pdf.js and Tesseract.js for local processing, plus a Python backend for deskewing, denoising, and multi-PSM OCR.🧠 AI Content Analysis: Powered by Amazon Bedrock to parse raw text into structured JSON, identifying core concepts and hierarchical sections.🗂️ Automated Flashcards: Instantly generates study-ready flashcards from extracted concepts to facilitate active recall.📊 Responsive Dashboard: A modern workspace featuring dark/light modes, real-time progress tracking, and subject-based filtering.📥 Dynamic Exporting: Professionals exports via jsPDF into PDF, TXT, and Word formats.🔐 Secure Cloud Infrastructure: Integrated with AWS Cognito for auth and S3 for secure file management.📸 Project WalkthroughLanding PageDocument UploadThe gateway to NoteMap with seamless login.Drag & drop interface with pre-processing.Knowledge DashboardActive Recall (Flashcards)Centralized hub with TOC and subject filters.AI-generated cards for testing knowledge.🛠️ Tech StackFrontend ArchitectureCore: React.jsStyling: Tailwind CSS & Lucide React (Icons)Auth & API: AWS Amplify, CognitoProcessing: pdf.js, Tesseract.js, jsPDFBackend & AI PipelineServerless: AWS Lambda, API GatewayAI/LLM: Amazon Bedrock (Advanced Parsing)Database: Amazon DynamoDBStorage: Amazon S3Python NLP: Flask, spaCy, NLTK, KeyBERT, and OpenCV
+Here is your upgraded, high-impact `README.md`. It uses **HTML alignment**, **Badge integration**, and **Visual Tables** to make the project look professional and easy to navigate for recruiters or other developers.
+
+---
+
+# <p align="center">🗺️ NoteMap — AI-Powered Study Tool</p>
+
+<p align="center">
+<img src="[https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white](https://www.google.com/search?q=https://img.shields.io/badge/AWS-232F3E%3Fstyle%3Dfor-the-badge%26logo%3Damazon-aws%26logoColor%3Dwhite)" />
+<img src="[https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB](https://www.google.com/search?q=https://img.shields.io/badge/React-20232A%3Fstyle%3Dfor-the-badge%26logo%3Dreact%26logoColor%3D61DAFB)" />
+<img src="[https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white](https://www.google.com/search?q=https://img.shields.io/badge/Python-3776AB%3Fstyle%3Dfor-the-badge%26logo%3Dpython%26logoColor%3Dwhite)" />
+<img src="[https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white](https://www.google.com/search?q=https://img.shields.io/badge/Tailwind_CSS-38B2AC%3Fstyle%3Dfor-the-badge%26logo%3Dtailwind-css%26logoColor%3Dwhite)" />
+</p>
+
+<p align="center">
+<strong>NoteMap</strong> is a serverless, AI-driven platform that transforms raw study materials into structured academic assets. By leveraging <strong>Amazon Bedrock</strong> and advanced <strong>OCR pipelines</strong>, NoteMap automates the creation of organized notes and interactive flashcards.
+</p>
+
+---
+
+## ⚡ Key Features
+
+* **🤖 Intelligent OCR Processing**: A hybrid strategy using `pdf.js` and `Tesseract.js` for local processing, plus a Python backend for deskewing, denoising, and multi-PSM OCR.
+* **🧠 AI Content Analysis**: Powered by **Amazon Bedrock** to parse raw text into structured JSON, identifying core concepts and hierarchical sections.
+* **🗂️ Automated Flashcards**: Instantly generates study-ready flashcards from extracted concepts to facilitate active recall.
+* **📊 Responsive Dashboard**: A modern workspace featuring dark/light modes, real-time progress tracking, and subject-based filtering.
+* **📥 Dynamic Exporting**: Professionals exports via `jsPDF` into PDF, TXT, and Word formats.
+* **🔐 Secure Cloud Infrastructure**: Integrated with **AWS Cognito** for auth and **S3** for secure file management.
+
+---
+
+## 📸 Project Walkthrough
+
+| **Landing Page** | **Document Upload** |
+| --- | --- |
+|  |  |
+| *The gateway to NoteMap with seamless login.* | *Drag & drop interface with pre-processing.* |
+
+| **Knowledge Dashboard** | **Active Recall (Flashcards)** |
+| --- | --- |
+|  |  |
+| *Centralized hub with TOC and subject filters.* | *AI-generated cards for testing knowledge.* |
+
+---
+
+## 🛠️ Tech Stack
+
+### **Frontend Architecture**
+
+* **Core**: React.js
+* **Styling**: Tailwind CSS & Lucide React (Icons)
+* **Auth & API**: AWS Amplify, Cognito
+* **Processing**: `pdf.js`, `Tesseract.js`, `jsPDF`
+
+### **Backend & AI Pipeline**
+
+* **Serverless**: AWS Lambda, API Gateway
+* **AI/LLM**: Amazon Bedrock (Advanced Parsing)
+* **Database**: Amazon DynamoDB
+* **Storage**: Amazon S3
+* **Python NLP**: Flask, spaCy, NLTK, KeyBERT, and OpenCV
+
